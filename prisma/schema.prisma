@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String  @id @default(uuid())
+  name     String
+  email    String  @unique
+  phone    String?  @unique
+  password String
+  salt     String
+  isAdmin  Boolean @default(false)
+
+  wishlistItems WishlistItem[]
+  addresses     Address[]
+  orders        Order[]
+  cartItems     CartItem[]
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Decimal
+  imageUrl    String
+  totalSales  Int      @default(0)
+  stock       Int // optional: total across all sizes
+  views       Int      @default(0)
+  tags        String[] // e.g. ["new", "bestseller"]
+  createdAt   DateTime @default(now())
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  productSizes ProductSizeStock[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  wishlistedBy WishlistItem[]
+}
+
+model ProductSizeStock {
+  id        String @id @default(uuid())
+  productId String
+  size      Size
+  stock     Int
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([productId, size])
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  productId String
+  userId    String? // Null if guest cart
+  sessionId String? // For guest carts
+  size      Size
+  quantity  Int      @default(1)
+  addedAt   DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, productId, size])
+  @@unique([sessionId, productId, size])
+}
+
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  addedAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+}
+
+model Address {
+  id       String  @id @default(uuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id])
+  fullName String
+  mobile   String
+  line1    String
+  line2    String?
+  city     String
+  state    String
+  country  String
+  zipCode  String
+  Order    Order[]
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  userId      String
+  addressId   String
+  totalAmount Decimal
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+
+  user       User        @relation(fields: [userId], references: [id])
+  address    Address     @relation(fields: [addressId], references: [id])
+  orderItems OrderItem[]
+  payment    Payment?
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  size      Size
+  quantity  Int
+  price     Decimal
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  orderId       String    @unique
+  method        String
+  transactionId String?
+  status        String
+  paidAt        DateTime?
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+enum Size {
+  XS
+  S
+  M
+  L
+  XL
+  XXL
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
