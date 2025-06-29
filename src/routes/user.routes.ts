@@ -1,24 +1,33 @@
 import { Router } from "express";
 import { userInputValidationMiddleware } from "../middlewares/validate.middlewares";
-import { existingUserCheck, handleUserSignin, handleUserSignup } from "../controllers/user.controller";
+import { handleUserName, handleUserSignin, handleUserSignup, queryExistingUserCheck } from "../controllers/user.controller";
+import { isAuthenticated } from "../middlewares/auth.middlewares";
 
-const app = Router();
+const router = Router();
 
 //user signup route
-app.post(
+router.post(
   "/signup",
+  isAuthenticated,
   userInputValidationMiddleware("signup"),
-  existingUserCheck("signup"),
   handleUserSignup
 );
 
 //user signin route
-app.post(
+router.post(
   "/signin",
+  isAuthenticated,
   userInputValidationMiddleware("signin"),
-  existingUserCheck("signin"),
   handleUserSignin
 );
 
+//change user name route
+router.post(
+  "/change/username",
+  isAuthenticated,
+  queryExistingUserCheck,
+  handleUserName
+);
 
-export default app;
+
+export default router;

@@ -4,7 +4,7 @@ import { AuthRequest } from "../types/customTypes";
 
 const router = Router();
 
-router.get("/me", isAuthenticated, (req: AuthRequest, res) => {
+router.get("/", isAuthenticated, (req: AuthRequest, res) => {
   res.status(200).json({ user: req.user });
 });
 

@@ -3,10 +3,10 @@ import { adminProductInputValidation ,adminCategoryInputValidation} from "../mid
 import { isAdmin, isAuthenticated } from "../middlewares/auth.middlewares";
 import { handleAddCategory, handleAddProduct } from "../controllers/adminProduct.controller";
 
-const app = Router();
+const router = Router();
 
-//user signup route
-app.post(
+//admin add product route
+router.post(
   "/product/add",
   isAuthenticated,
   isAdmin,
@@ -14,8 +14,8 @@ app.post(
   handleAddProduct
 );
 
-//user signin route
-app.post(
+//admin add category route
+router.post(
   "/category/add",
   isAuthenticated,
   isAdmin,
@@ -24,4 +24,4 @@ app.post(
 );
 
 
-export default app;
+export default router;
