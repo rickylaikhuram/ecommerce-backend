@@ -22,3 +22,4 @@ export const genderSchema = z
   .union([z.enum(["male", "female", "other"]), z.null()])
   .optional();
 
+export const numberSchema = z.number();

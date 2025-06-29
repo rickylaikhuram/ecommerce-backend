@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { userInputValidationMiddleware } from "../middlewares/userMiddlewares";
-import { existingUserCheck, handleUserSignin, handleUserSignup } from "../controllers/user";
+import { userInputValidationMiddleware } from "../middlewares/validate.middlewares";
+import { existingUserCheck, handleUserSignin, handleUserSignup } from "../controllers/user.controller";
 
 const app = Router();
 

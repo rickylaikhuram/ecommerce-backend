@@ -1,22 +1,25 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
-import user from "./routes/user";
-// import admin from "./routes/admin";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+import user from "./routes/user.routes";
+import admin from "./routes/admin.routes";
+import { errorHandler } from "./middlewares/error.middleware";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const JWT_SECRET = process.env.JWT_SECRET as string;
-console.log("💡 index.ts is starting...")
+
 // Middlewares
 app.use(express.json());
+app.use(cookieParser());
 app.use(cors());
 
 // Check if user is logged in
-app.get("/islogIn", (req: Request, res: Response) => {
+app.use("/islogIn", (req: Request, res: Response) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
     res.status(401).json({ message: "Not Logged In", auth: null });
@@ -37,27 +40,10 @@ app.get("/islogIn", (req: Request, res: Response) => {
 
 // Routes
 app.use("/user", user);
-// app.use("/admin", admin);
+app.use("/admin", admin);
 
 // Global Error Handler
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error("Global Error:", err);
-
-  if (err.name === "UnauthorizedError") {
-    res.status(401).json({ message: "Invalid token" });
-    return;
-  }
-
-  if (err.name === "PrismaClientKnownRequestError") {
-    res.status(400).json({ message: "Database Error", detail: err.meta });
-    return;
-  }
-
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-  });
-});
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, () => {

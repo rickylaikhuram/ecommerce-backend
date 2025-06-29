@@ -1,16 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import { PrismaClient } from "@prisma/client";
-import { generateSalt, hashPassword } from "../utils/hash";
+import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
 import dotenv from "dotenv";
-import jwt from "jsonwebtoken";
 import { generateToken } from "../utils/tokens";
 import { UserExtend } from "../types/customTypes";
 
 dotenv.config();
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
 
 //check existingUser in the database
 export const existingUserCheck =
@@ -62,7 +59,14 @@ export const handleUserSignup = async (req: Request, res: Response) => {
       },
     });
 
-    const token = generateToken({ uid: user.id, isAdmin: user.isAdmin }, "5d");
+    const token = generateToken(
+      {
+        uid: user.id,
+        isAdmin: user.isAdmin,
+        role: user.isAdmin ? "admin" : "user",
+      },
+      "5d"
+    );
 
     res
       .status(200)
@@ -89,16 +93,23 @@ export const handleUserSignup = async (req: Request, res: Response) => {
 export const handleUserSignin = async (req: UserExtend, res: Response) => {
   try {
     const { password } = req.body;
-    const user = req.user
+    const user = req.user;
 
-    const hashedPassword = await hashPassword(password!, user?.salt!);
+    const checkPassword = await comparePassword(password!, user?.password!);
 
-    if(hashedPassword!==user?.password){
-      res.status(401).json({message:"Unauthorized, Password is Wrong"})
-      return
+    if (!checkPassword) {
+      res.status(401).json({ message: "Unauthorized, Password is Wrong" });
+      return;
     }
 
-    const token = generateToken({ uid: user.id, isAdmin: user.isAdmin }, "5d");
+    const token = generateToken(
+      {
+        uid: user?.id,
+        isAdmin: user?.isAdmin,
+        role: user?.isAdmin ? "admin" : "user",
+      },
+      "5d"
+    );
 
     res
       .status(200)
@@ -111,9 +122,9 @@ export const handleUserSignin = async (req: UserExtend, res: Response) => {
       .json({
         message: "Signin successful",
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
+          id: user?.id,
+          email: user?.email,
+          name: user?.name,
         },
       });
   } catch (error) {

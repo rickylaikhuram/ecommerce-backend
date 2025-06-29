@@ -4,7 +4,7 @@
   "description": "an e-commerce website backend",
   "main": "index.js",
   "scripts": {
-     "dev": "nodemon --watch src --exec ts-node src/index.ts"
+    "dev": "nodemon --watch src --exec ts-node src/index.ts"
   },
   "repository": {
     "type": "git",
@@ -29,13 +29,16 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.3",
+    "cookie-parser": "^1.4.7",
     "nodemon": "^3.1.10",
     "prisma": "^6.10.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "uuid": "^11.1.0"
   }
 }
