@@ -7,7 +7,7 @@ const router = Router();
 
 //admin add product route
 router.post(
-  "/product/add",
+  "/add/product",
   isAuthenticated,
   isAdmin,
   adminProductInputValidation,
@@ -16,7 +16,7 @@ router.post(
 
 //admin add category route
 router.post(
-  "/category/add",
+  "/add/category",
   isAuthenticated,
   isAdmin,
   adminCategoryInputValidation,

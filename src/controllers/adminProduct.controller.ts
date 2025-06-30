@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
 import dotenv from "dotenv";
 import { generateToken } from "../utils/tokens";
-import { UserExtend } from "../types/customTypes";
+import { ProductRequest, UserExtend } from "../types/customTypes";
 
 dotenv.config();
 
@@ -84,6 +84,20 @@ export const handleAddProduct = async (req: Request, res: Response) => {
         categoryName: categoryExist.name,
       },
     });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error", error });
+  }
+};
+
+//add product stock controller
+export const handleAddStock = async (req: ProductRequest, res: Response) => {
+  try {
+    const productSizeAndStock = req.body;
+
+    
+
+
+
   } catch (error) {
     res.status(500).json({ message: "Internal server error", error });
   }
