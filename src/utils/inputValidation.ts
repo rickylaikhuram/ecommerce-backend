@@ -13,13 +13,19 @@ export const stringSchema = z
   .string()
   .min(1, { message: "This field cannot be empty" });
 
-export const contactSchema = z
+export const indianPhoneNumberSchema = z
   .string()
-  .length(10, { message: "Contact number must be exactly 10 digits" })
-  .regex(/^\d+$/, { message: "Contact number must contain only digits" });
+  .regex(/^[6-9]\d{9}$/, {
+    message: "Must be 10 digits starting with 6-9.",
+  });
 
 export const genderSchema = z
   .union([z.enum(["male", "female", "other"]), z.null()])
   .optional();
 
 export const numberSchema = z.number();
+
+export const otpSchema = z
+  .string()
+  .length(6, "OTP must be exactly 6 digits")
+  .regex(/^\d{6}$/, "OTP must contain only digits");

@@ -3,12 +3,11 @@ import dotenv from "dotenv";
 import { AuthRequest } from "../types/customTypes";
 import { decodeToken, verifyToken } from "../utils/tokens";
 import { createGuestTokens } from "../utils/guest";
-import { deleteGuestCart } from "../services/guest.cart.services";
 
 dotenv.config();
 
 // Middleware: Check if user is authenticated or create guest identity
-export const isAuthenticated = async (
+export const identifySessionUser = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -22,24 +21,6 @@ export const isAuthenticated = async (
     req.user = decoded;
     return next(); // Proceed with valid user
   } catch (err: any) {
-    // Try to decode expired or invalid token manually to clean up guest cart
-    let decodedGuest;
-    try {
-      decodedGuest = decodeToken(token);
-    } catch (decodeErr) {
-      console.error("Failed to decode token:", decodeErr);
-    }
-
-    // Cleanup guest cart if token was guest
-    if (decodedGuest?.role === "guest") {
-      try {
-        await deleteGuestCart(decodedGuest.uid);
-        console.log(`🗑️ Deleted cart for expired guest: ${decodedGuest.uid}`);
-      } catch (deleteErr) {
-        console.error("Failed to delete guest cart:", deleteErr);
-      }
-    }
-
     // Generate a new guest token and attach to request
     try {
       const guestToken = createGuestTokens(); 

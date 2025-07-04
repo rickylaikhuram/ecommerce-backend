@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { isAuthenticated } from "../middlewares/auth.middlewares";
+import { identifySessionUser } from "../middlewares/auth.middlewares";
 import { handleViewingAllProducts } from "../controllers/userProduct.controller";
 const router = Router();
 
 //get all the products
-router.get("/", isAuthenticated, handleViewingAllProducts);
+router.get("/", identifySessionUser, handleViewingAllProducts);
 
 export default router;

@@ -1,33 +1,62 @@
 import { Router } from "express";
-import { userInputValidationMiddleware } from "../middlewares/validate.middlewares";
-import { handleUserName, handleUserSignin, handleUserSignup, queryExistingUserCheck } from "../controllers/user.controller";
-import { isAuthenticated } from "../middlewares/auth.middlewares";
+import {
+  userSignInInputValidationMiddleware,
+  userSignupInputValidationMiddleware,
+  validateOtpInput,
+  validatePhone,
+} from "../middlewares/validate.middlewares";
+import {
+  handleOtpSigninInitiate,
+  handleUserName,
+  handleUserSignin,
+  handleUserSigninWithOtp,
+  handleUserSignUpVerify,
+  handleVerifiedUserSignup,
+  queryExistingUserCheck,
+} from "../controllers/user.controller";
+import { identifySessionUser } from "../middlewares/auth.middlewares";
 
 const router = Router();
 
-//user signup route
+//user signup routes
 router.post(
-  "/signup",
-  isAuthenticated,
-  userInputValidationMiddleware("signup"),
-  handleUserSignup
+  "/signup/initiate",
+  identifySessionUser,
+  userSignupInputValidationMiddleware,
+  handleUserSignUpVerify
+);
+router.post(
+  "/signup/confirm",
+  identifySessionUser,
+  validateOtpInput,
+  handleVerifiedUserSignup
 );
 
-//user signin route
+//user signin routes
+// Password-based sign-in
 router.post(
-  "/signin",
-  isAuthenticated,
-  userInputValidationMiddleware("signin"),
+  "/signin/password",
+  identifySessionUser,
+  userSignInInputValidationMiddleware,
   handleUserSignin
 );
 
-//change user name route
+// OTP-based sign-in
 router.post(
+  "/signin/otp/initiate",
+  identifySessionUser,
+  validatePhone, // Validate phone & otp
+  handleOtpSigninInitiate // New controller
+);
+
+router.post("/signin/otp/verify",identifySessionUser, validateOtpInput, handleUserSigninWithOtp);
+
+//update user name route
+router.put(
   "/change/username",
-  isAuthenticated,
+  identifySessionUser,
   queryExistingUserCheck,
   handleUserName
 );
-
 
 export default router;

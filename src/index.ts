@@ -4,9 +4,10 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import user from "./routes/user.routes";
 import admin from "./routes/admin.routes";
-import me from "./routes/auth.routes"
-import products from "./routes/product.routes"
+import me from "./routes/auth.routes";
+import products from "./routes/product.routes";
 import { errorHandler } from "./middlewares/error.middleware";
+import { connectRedis } from "./config/redis";
 
 dotenv.config();
 
@@ -30,6 +31,13 @@ app.use("/api/products", products);
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+const startServer = async () => {
+  //Connect Redis
+  await connectRedis();
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+};
+
+startServer();

@@ -19,3 +19,10 @@ export interface AuthRequest extends Request {
 export interface ProductRequest extends Request {
   product?: Product;
 }
+
+
+export type GuestCartItem = {
+  productId: string;
+  size: "XS" | "S" | "M" | "L" | "XL" | "XXL";
+  quantity: number;
+};

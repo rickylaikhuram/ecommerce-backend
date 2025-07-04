@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { adminProductInputValidation ,adminCategoryInputValidation} from "../middlewares/validate.middlewares";
-import { isAdmin, isAuthenticated } from "../middlewares/auth.middlewares";
+import { isAdmin, identifySessionUser } from "../middlewares/auth.middlewares";
 import { handleAddCategory, handleAddProduct } from "../controllers/adminProduct.controller";
 
 const router = Router();
@@ -8,7 +8,7 @@ const router = Router();
 //admin add product route
 router.post(
   "/add/product",
-  isAuthenticated,
+  identifySessionUser,
   isAdmin,
   adminProductInputValidation,
   handleAddProduct
@@ -17,7 +17,7 @@ router.post(
 //admin add category route
 router.post(
   "/add/category",
-  isAuthenticated,
+  identifySessionUser,
   isAdmin,
   adminCategoryInputValidation,
   handleAddCategory

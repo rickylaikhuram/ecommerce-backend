@@ -11,7 +11,7 @@ model User {
   id       String  @id @default(uuid())
   name     String
   email    String  @unique
-  phone    String? @unique
+  phone    String @unique
   password String
   salt     String
   isAdmin  Boolean @default(false)
@@ -72,8 +72,7 @@ model ProductSizeStock {
 model CartItem {
   id        String   @id @default(uuid())
   productId String
-  userId    String? // Null if guest cart
-  sessionId String? // For guest carts
+  userId    String
   size      Size
   quantity  Int      @default(1)
   addedAt   DateTime @default(now())
@@ -82,7 +81,6 @@ model CartItem {
   user    User?   @relation(fields: [userId], references: [id])
 
   @@unique([userId, productId, size])
-  @@unique([sessionId, productId, size])
 }
 
 model WishlistItem {

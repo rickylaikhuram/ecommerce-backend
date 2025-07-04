@@ -7,3 +7,8 @@ export const findUserByEmail = async (email: string): Promise<User | null> => {
     where: { email },
   });
 };
+export const findUserByPhone = async (phone: string): Promise<User | null> => {
+  return await prisma.user.findUnique({
+    where: { phone },
+  });
+};
