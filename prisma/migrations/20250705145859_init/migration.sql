@@ -1,7 +1,4 @@
 -- CreateEnum
-CREATE TYPE "Size" AS ENUM ('XS', 'S', 'M', 'L', 'XL', 'XXL');
-
--- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED');
 
 -- CreateTable
@@ -9,7 +6,7 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "phone" TEXT,
+    "phone" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "salt" TEXT NOT NULL,
     "isAdmin" BOOLEAN NOT NULL DEFAULT false,
@@ -31,11 +28,9 @@ CREATE TABLE "Product" (
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "price" DECIMAL(65,30) NOT NULL,
-    "imageUrl" TEXT NOT NULL,
+    "fakePrice" DECIMAL(65,30) NOT NULL,
     "totalSales" INTEGER NOT NULL DEFAULT 0,
-    "stock" INTEGER NOT NULL,
     "views" INTEGER NOT NULL DEFAULT 0,
-    "tags" TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "categoryId" TEXT NOT NULL,
 
@@ -43,22 +38,33 @@ CREATE TABLE "Product" (
 );
 
 -- CreateTable
-CREATE TABLE "ProductSizeStock" (
+CREATE TABLE "ProductImage" (
+    "id" TEXT NOT NULL,
+    "imageUrl" TEXT NOT NULL,
+    "altText" TEXT,
+    "position" INTEGER,
+    "isMain" BOOLEAN NOT NULL DEFAULT false,
+    "productId" TEXT NOT NULL,
+
+    CONSTRAINT "ProductImage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProductStock" (
     "id" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "size" "Size" NOT NULL,
+    "stockname" TEXT NOT NULL,
     "stock" INTEGER NOT NULL,
 
-    CONSTRAINT "ProductSizeStock_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ProductStock_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "CartItem" (
     "id" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "userId" TEXT,
-    "sessionId" TEXT,
-    "size" "Size" NOT NULL,
+    "userId" TEXT NOT NULL,
+    "stockname" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 1,
     "addedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -108,7 +114,7 @@ CREATE TABLE "OrderItem" (
     "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "size" "Size" NOT NULL,
+    "stockname" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
     "price" DECIMAL(65,30) NOT NULL,
 
@@ -137,13 +143,10 @@ CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
 CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ProductSizeStock_productId_size_key" ON "ProductSizeStock"("productId", "size");
+CREATE UNIQUE INDEX "ProductStock_productId_stockname_key" ON "ProductStock"("productId", "stockname");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CartItem_userId_productId_size_key" ON "CartItem"("userId", "productId", "size");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CartItem_sessionId_productId_size_key" ON "CartItem"("sessionId", "productId", "size");
+CREATE UNIQUE INDEX "CartItem_userId_productId_stockname_key" ON "CartItem"("userId", "productId", "stockname");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WishlistItem_userId_productId_key" ON "WishlistItem"("userId", "productId");
@@ -155,13 +158,16 @@ CREATE UNIQUE INDEX "Payment_orderId_key" ON "Payment"("orderId");
 ALTER TABLE "Product" ADD CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ProductSizeStock" ADD CONSTRAINT "ProductSizeStock_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProductImage" ADD CONSTRAINT "ProductImage_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductStock" ADD CONSTRAINT "ProductStock_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WishlistItem" ADD CONSTRAINT "WishlistItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

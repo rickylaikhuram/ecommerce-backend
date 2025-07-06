@@ -25,7 +25,7 @@ app.use("/api/me", me);
 // Routes
 app.use("/api/user", user);
 app.use("/api/admin", admin);
-app.use("/api/products", products);
+app.use("/api/product", products);
 
 // Global Error Handler
 app.use(errorHandler);

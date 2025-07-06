@@ -1,104 +1,247 @@
-import { Request, Response, NextFunction } from "express";
-import { PrismaClient } from "@prisma/client";
-import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
+import { Request, Response } from "express";
+import prisma from "../config/prisma";
 import dotenv from "dotenv";
-import { generateToken } from "../utils/tokens";
-import { ProductRequest, UserExtend } from "../types/customTypes";
 
 dotenv.config();
 
-const prisma = new PrismaClient();
-
 //add category Controller
 export const handleAddCategory = async (req: Request, res: Response) => {
-  try {
-    const { category } = req.body;
+  const { category } = req.body;
 
-    //check category already exist or not
-    const categoryExist = await prisma.category.findUnique({
-      where: { name: category },
-    });
+  // Check if category already exists
+  const categoryExist = await prisma.category.findUnique({
+    where: { name: category },
+  });
 
-    if (categoryExist) {
-      res.status(403).json({ message: "Category already exist" });
-      return;
-    }
-
-    //create new category
-    const createCategory = await prisma.category.create({
-      data: {
-        name: category,
-      },
-    });
-
-    res.status(200).json({
-      message: "Category created successfully",
-      category: {
-        name: createCategory.name,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error", error });
+  if (categoryExist) {
+    throw { status: 403, message: "Category already exists" };
   }
+
+  // Create new category
+  const createCategory = await prisma.category.create({
+    data: { name: category },
+  });
+
+  res.status(200).json({
+    message: "Category created successfully",
+    category: { name: createCategory.name },
+  });
 };
 
 //add product controller
 export const handleAddProduct = async (req: Request, res: Response) => {
-  try {
-    const {
-      productCategory,
-      productName,
-      productDescription,
-      productFakePrice,
-      productPrice,
-    } = req.body;
+  const {
+    category,
+    name,
+    description,
+    fakePrice,
+    price,
+    images,
+    productStocks,
+  } = req.body;
 
-    //check category already exist or not
-    const categoryExist = await prisma.category.findUnique({
-      where: { name: productCategory },
+  // Check category exists
+  const categoryExist = await prisma.category.findUnique({
+    where: { name: category },
+  });
+
+  if (!categoryExist) {
+    throw { status: 403, message: "Category doesn't exist" };
+  }
+
+  // Transaction to create product, images, and stocks
+  const result = await prisma.$transaction(async (tx) => {
+    const createdProduct = await tx.product.create({
+      data: {
+        name,
+        description,
+        price,
+        fakePrice,
+        categoryId: categoryExist.id,
+      },
     });
 
-    if (!categoryExist) {
-      res.status(403).json({ message: "Category doesn't exist" });
-      return;
+    if (images?.length > 0) {
+      await tx.productImage.createMany({
+        data: images.map((img: any) => ({
+          imageUrl: img.imageKey,
+          altText: img.altText || null,
+          position: img.position || null,
+          isMain: img.isMain || false,
+          productId: createdProduct.id,
+        })),
+      });
     }
 
-    //create new product
-    const createProduct = await prisma.product.create({
-      data: {
-        name: productName,
-        description: productDescription,
-        price: productPrice,
-        fakePrice: productFakePrice,
-        categoryId: productCategory,
-      },
+    if (productStocks?.length > 0) {
+      await tx.productStock.createMany({
+        data: productStocks.map((stock: any) => ({
+          stockName: stock.stockName,
+          stock: stock.stock,
+          productId: createdProduct.id,
+        })),
+      });
+    }
+
+    return createdProduct;
+  });
+
+  res.status(200).json({
+    message: "Product created successfully",
+    product: {
+      name: result.name,
+      description: result.description,
+      price: result.price,
+      fakePrice: result.fakePrice,
+      categoryName: categoryExist.name,
+    },
+  });
+};
+
+//update product stock controller
+export const handleUpdateStock = async (req: Request, res: Response) => {
+  const { productId, productStocks } = req.body;
+
+  if (!productId) {
+    throw { status: 403, message: "Product Id is required" };
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+  });
+
+  if (!product) {
+    throw { status: 404, message: "Product not found" };
+  }
+
+  const result = [];
+
+  for (const { stockName, stock } of productStocks) {
+    const existingStock = await prisma.productStock.findFirst({
+      where: { productId, stockName },
     });
 
-    res.status(200).json({
-      message: "product created successfully",
-      product: {
-        name: createProduct.name,
-        description: createProduct.description,
-        price: createProduct.price,
-        fakePrice: createProduct.fakePrice,
-        categoryName: categoryExist.name,
-      },
+    if (!existingStock) {
+      result.push({
+        stockName,
+        status: "not found",
+      });
+      continue;
+    }
+
+    const updated = await prisma.productStock.update({
+      where: { id: existingStock.id },
+      data: { stock },
     });
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error", error });
+
+    result.push({
+      stockName,
+      status: "updated",
+      newStock: updated.stock,
+    });
   }
+
+  res.status(200).json({
+    message: "Stock update complete",
+    result,
+  });
 };
 
 //add product stock controller
-export const handleAddStock = async (req: ProductRequest, res: Response) => {
-  try {
-    const productSizeAndStock = req.body;
+export const handleAddStock = async (req: Request, res: Response) => {
+  const { productId, productStocks } = req.body;
 
-    
-
-
-
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error", error });
+  if (!productId) {
+    throw { status: 403, message: "Product Id is required" };
   }
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+  });
+
+  if (!product) {
+    throw { status: 404, message: "Product not found" };
+  }
+
+  const result = [];
+
+  for (const { stockName, stock } of productStocks) {
+    const exists = await prisma.productStock.findFirst({
+      where: { productId, stockName },
+    });
+
+    if (exists) {
+      result.push({
+        stockName,
+        status: "already exists",
+      });
+      continue;
+    }
+
+    const created = await prisma.productStock.create({
+      data: {
+        productId,
+        stockName,
+        stock,
+      },
+    });
+
+    result.push({
+      stockName,
+      status: "created",
+      stock: created.stock,
+    });
+  }
+
+  res.status(201).json({
+    message: "Stock creation complete",
+    result,
+  });
+};
+
+//delete product stock controller
+export const handleDeleteStock = async (req: Request, res: Response) => {
+  const { productId, productStocks } = req.body;
+
+  if (!productId) {
+    throw { status: 403, message: "Product Id is required" };
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+  });
+
+  if (!product) {
+    throw { status: 404, message: "Product not found" };
+  }
+
+  const result = [];
+
+  for (const { stockName } of productStocks) {
+    const existing = await prisma.productStock.findFirst({
+      where: { productId, stockName },
+    });
+
+    if (!existing) {
+      result.push({
+        stockName,
+        status: "not found",
+      });
+      continue;
+    }
+
+    await prisma.productStock.delete({
+      where: { id: existing.id },
+    });
+
+    result.push({
+      stockName,
+      status: "deleted",
+    });
+  }
+
+  res.status(200).json({
+    message: "Stock deletion complete",
+    result,
+  });
 };

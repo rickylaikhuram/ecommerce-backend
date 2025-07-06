@@ -23,6 +23,15 @@ export interface ProductRequest extends Request {
 
 export type GuestCartItem = {
   productId: string;
-  size: "XS" | "S" | "M" | "L" | "XL" | "XXL";
+  stockname: string;
   quantity: number;
 };
+
+export interface UploadRequestBody {
+  fileName: string;
+  fileType: string;
+}
+
+export interface DeleteRequestBody {
+  key: string;
+}

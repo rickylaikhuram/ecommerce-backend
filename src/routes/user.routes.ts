@@ -49,6 +49,7 @@ router.post(
   handleOtpSigninInitiate // New controller
 );
 
+// OTP verify
 router.post("/signin/otp/verify",identifySessionUser, validateOtpInput, handleUserSigninWithOtp);
 
 //update user name route

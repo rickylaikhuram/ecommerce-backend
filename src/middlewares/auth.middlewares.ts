@@ -21,19 +21,16 @@ export const identifySessionUser = async (
     req.user = decoded;
     return next(); // Proceed with valid user
   } catch (err: any) {
-    // Generate a new guest token and attach to request
     try {
-      const guestToken = createGuestTokens(); 
+      const guestToken = createGuestTokens();
       let guestDecoded;
       try {
         guestDecoded = decodeToken(guestToken);
       } catch (decodeErr) {
         console.error("Failed to decode new guest token:", decodeErr);
-        res.status(500).json({ message: "Internal server error" });
-        return 
+        throw { statusCode: 500, message: "Internal server error" };
       }
 
-      // Set new guest token in cookie
       res.cookie("token", guestToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -41,13 +38,11 @@ export const identifySessionUser = async (
         maxAge: 1 * 24 * 60 * 60 * 1000, // 1 day
       });
 
-      req.user = guestDecoded
-
+      req.user = guestDecoded;
       return next();
     } catch (guestErr) {
       console.error("Guest token creation failed:", guestErr);
-      res.status(500).json({ message: "Internal server error" });
-      return 
+      throw { statusCode: 500, message: "Internal server error" };
     }
   }
 };
@@ -59,26 +54,20 @@ export const isAdmin = (
   next: NextFunction
 ) => {
   if (!req.user || !req.user.isAdmin) {
-    res.status(403).json({ message: "Admin access only" });
-    return 
+    throw { statusCode: 403, message: "Admin access only" };
   }
   next();
 };
 
 //check if the user is a user
-export const isUser = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
+export const isUser = (req: AuthRequest, res: Response, next: NextFunction) => {
   if (!req.user) {
-    return res.status(401).json({ message: "Unauthorized" });
+    throw { statusCode: 401, message: "Unauthorized" };
   }
 
   if (req.user.role !== "user") {
-    return res.status(403).json({ message: "Only user access allowed" });
+    throw { statusCode: 403, message: "Only user access allowed" };
   }
 
   next();
 };
-

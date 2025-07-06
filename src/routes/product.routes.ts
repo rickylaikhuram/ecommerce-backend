@@ -4,6 +4,6 @@ import { handleViewingAllProducts } from "../controllers/userProduct.controller"
 const router = Router();
 
 //get all the products
-router.get("/", identifySessionUser, handleViewingAllProducts);
+router.get("/all", identifySessionUser, handleViewingAllProducts);
 
 export default router;

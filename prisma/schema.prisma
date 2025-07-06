@@ -11,7 +11,7 @@ model User {
   id       String  @id @default(uuid())
   name     String
   email    String  @unique
-  phone    String @unique
+  phone    String  @unique
   password String
   salt     String
   isAdmin  Boolean @default(false)
@@ -42,7 +42,7 @@ model Product {
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
 
-  productSizes ProductSizeStock[]
+  productSizes ProductStock[]
   cartItems    CartItem[]
   orderItems   OrderItem[]
   wishlistedBy WishlistItem[]
@@ -58,29 +58,29 @@ model ProductImage {
   productId String
 }
 
-model ProductSizeStock {
+model ProductStock {
   id        String @id @default(uuid())
   productId String
-  size      Size
+  stockName String
   stock     Int
 
   product Product @relation(fields: [productId], references: [id])
 
-  @@unique([productId, size])
+  @@unique([productId, stockName])
 }
 
 model CartItem {
   id        String   @id @default(uuid())
   productId String
   userId    String
-  size      Size
+  stockname String
   quantity  Int      @default(1)
   addedAt   DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id])
   user    User?   @relation(fields: [userId], references: [id])
 
-  @@unique([userId, productId, size])
+  @@unique([userId, productId, stockname])
 }
 
 model WishlistItem {
@@ -128,7 +128,7 @@ model OrderItem {
   id        String  @id @default(uuid())
   orderId   String
   productId String
-  size      Size
+  stockname String
   quantity  Int
   price     Decimal
 
@@ -145,15 +145,6 @@ model Payment {
   paidAt        DateTime?
 
   order Order @relation(fields: [orderId], references: [id])
-}
-
-enum Size {
-  XS
-  S
-  M
-  L
-  XL
-  XXL
 }
 
 enum OrderStatus {
