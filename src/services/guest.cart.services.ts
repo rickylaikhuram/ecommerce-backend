@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import redis from "../config/redis";
+import {redisOtp} from "../config/redis";
 import { GuestCartItem } from "../types/customTypes";
 
 const prisma = new PrismaClient();
@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 export const mergeGuestCart = async (guestUid: string, userUid: string): Promise<void> => {
   const redisKey = `cart:${guestUid}`;
-  const cartData = await redis.get(redisKey);
+  const cartData = await redisOtp.get(redisKey);
 
   if (!cartData) return;
 
@@ -40,5 +40,5 @@ export const mergeGuestCart = async (guestUid: string, userUid: string): Promise
     )
   );
 
-  await redis.del(redisKey);
+  await redisOtp.del(redisKey);
 };

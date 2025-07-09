@@ -2,312 +2,414 @@ import { Request, Response, NextFunction } from "express";
 import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
 import dotenv from "dotenv";
 import { generateToken } from "../utils/tokens";
-import { AuthRequest, UserExtend } from "../types/customTypes";
+import { AuthRequest } from "../types/customTypes";
 import { mergeGuestCart } from "../services/guest.cart.services";
 import { findUserByEmail, findUserByPhone } from "../services/user.service";
-import redis from "../config/redis";
+import { redisOtp } from "../config/redis";
 import { generateOTP } from "../utils/otp";
 import { sendOtpSms } from "../services/otp.service";
-import prisma from "../config/prisma"
+import prisma from "../config/prisma";
 
 dotenv.config();
 
-
-// signup route : add user data to redis and send otp to verify
+// signup: initiate signup and send OTP
 export const handleUserSignUpVerify = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
-  const { email, phone, name, password } = req.body;
+  try {
+    const { email, phone, name, password } = req.body;
 
-  const existingUserByEmail = await findUserByEmail(email);
-  if (existingUserByEmail) {
-    throw { status: 409, message: "User Email Already Exist" };
+    if (await findUserByEmail(email)) {
+      const error = new Error("User Email Already Exist") as any;
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (await findUserByPhone(phone)) {
+      const error = new Error("User Phone Already Exist") as any;
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const salt = await generateSalt(10);
+    const hashedPassword = await hashPassword(password!, salt);
+    const userData = { email, phone, name, password: hashedPassword, salt };
+
+    await redisOtp.set(`signup:${phone}`, JSON.stringify(userData), "EX", 360);
+    const otp = generateOTP();
+    await redisOtp.set(`otp:${phone}`, otp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, otp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    res.status(200).json({ message: "OTP sent to your phone" });
+  } catch (err) {
+    next(err);
   }
-
-  const existingUserByPhone = await findUserByPhone(phone);
-  if (existingUserByPhone) {
-    throw { status: 409, message: "User Phone Already Exist" };
-  }
-
-  const salt = await generateSalt(10);
-  const hashedPassword = await hashPassword(password!, salt);
-
-  const userData = {
-    email,
-    phone,
-    name,
-    password: hashedPassword,
-    salt,
-  };
-
-  const redisKey = `signup:${phone}`;
-  await redis.set(redisKey, JSON.stringify(userData), { EX: 360 });
-
-  const otp = generateOTP();
-  await redis.set(`otp:${phone}`, otp, { EX: 300 });
-
-  const sent = await sendOtpSms(phone, otp);
-  if (!sent) {
-    throw { status: 500, message: "Failed to send OTP" };
-  }
-
-  res.status(200).json({ message: "OTP sent to your phone" });
 };
 
-// signup route : otp verification and add user to database from redis
+// resend OTP during signup
+export const handleResendSignupOtp = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      const error = new Error("Phone number is required") as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const redisUserKey = `signup:${phone}`;
+    const userDataRaw = await redisOtp.get(redisUserKey);
+
+    if (!userDataRaw) {
+      const error = new Error(
+        "Signup session expired. Please start over."
+      ) as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    await redisOtp.set(redisUserKey, userDataRaw, "EX", 360);
+
+    const newOtp = generateOTP();
+    await redisOtp.set(`otp:${phone}`, newOtp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, newOtp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    console.log(`✅ OTP resent to ${phone}: ${newOtp}`);
+    res.status(200).json({ message: "OTP resent successfully" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// confirm signup with OTP
 export const handleVerifiedUserSignup = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
-  const { phone, otp } = req.body;
+  try {
+    const { phone, otp } = req.body;
 
-  const redisOtpKey = `otp:${phone}`;
-  const storedOtp = await redis.get(redisOtpKey);
+    const redisOtpKey = `otp:${phone}`;
+    const storedOtp = await redisOtp.get(redisOtpKey);
 
-  if (!storedOtp) {
-    throw { status: 410, message: "OTP expired or not found" };
-  }
+    if (!storedOtp) {
+      const error = new Error("OTP expired or not found") as any;
+      error.statusCode = 410;
+      throw error;
+    }
 
-  if (storedOtp !== otp) {
-    throw { status: 401, message: "Invalid OTP" };
-  }
+    if (storedOtp !== otp) {
+      const error = new Error("Invalid OTP") as any;
+      error.statusCode = 401;
+      throw error;
+    }
 
-  const redisUserKey = `signup:${phone}`;
-  const userDataRaw = await redis.get(redisUserKey);
+    const redisUserKey = `signup:${phone}`;
+    const userDataRaw = await redisOtp.get(redisUserKey);
 
-  if (!userDataRaw) {
-    throw {
-      status: 410,
-      message: "Signup session expired. Please register again.",
-    };
-  }
+    if (!userDataRaw) {
+      const error = new Error(
+        "Signup session expired. Please register again."
+      ) as any;
+      error.statusCode = 410;
+      throw error;
+    }
 
-  const { email, name, password, salt } = JSON.parse(userDataRaw);
+    const { email, name, password, salt } = JSON.parse(userDataRaw);
 
-  // Edge-case re-checks
-  if (await findUserByEmail(email)) {
-    throw { status: 409, message: "Email already exists" };
-  }
+    if (await findUserByEmail(email)) {
+      const error = new Error("Email already exists") as any;
+      error.statusCode = 409;
+      throw error;
+    }
 
-  if (await findUserByPhone(phone)) {
-    throw { status: 409, message: "Phone already exists" };
-  }
+    if (await findUserByPhone(phone)) {
+      const error = new Error("Phone already exists") as any;
+      error.statusCode = 409;
+      throw error;
+    }
 
-  const user = await prisma.user.create({
-    data: { email, phone, name, password, salt },
-  });
-
-  if (req.user?.role === "guest") {
-    await mergeGuestCart(req.user.uid, user.id);
-  }
-
-  const token = generateToken(
-    {
-      uid: user.id,
-      isAdmin: user.isAdmin,
-      role: user.isAdmin ? "admin" : "user",
-    },
-    "5d"
-  );
-
-  await redis.del(redisOtpKey);
-  await redis.del(redisUserKey);
-
-  res
-    .status(200)
-    .cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 5 * 24 * 60 * 60 * 1000,
-    })
-    .json({
-      message: "Signup successful",
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
+    const user = await prisma.user.create({
+      data: { email, phone, name, password, salt },
     });
-};
 
-// signin route : user signin with password Controller
-export const handleUserSignin = async (req: AuthRequest, res: Response) => {
-  const { identifierType, email, phone, password } = req.body;
+    if (req.user?.role === "guest") {
+      await mergeGuestCart(req.user.uid, user.id);
+    }
 
-  let existingUser;
-
-  if (identifierType === "email" && email) {
-    existingUser = await findUserByEmail(email);
-  } else if (identifierType === "phone" && phone) {
-    existingUser = await findUserByPhone(phone);
-  }
-
-  if (!existingUser) {
-    throw { status: 404, message: "User not found" };
-  }
-
-  const isPasswordCorrect = await comparePassword(
-    password,
-    existingUser.password
-  );
-
-  if (!isPasswordCorrect) {
-    throw { status: 401, message: "Unauthorized: Incorrect password" };
-  }
-
-  // Optional: Merge guest cart if user was browsing as guest
-  if (req.user?.role === "guest") {
-    await mergeGuestCart(req.user.uid, existingUser.id);
-  }
-
-  const token = generateToken(
-    {
-      uid: existingUser.id,
-      isAdmin: existingUser.isAdmin,
-      role: existingUser.isAdmin ? "admin" : "user",
-    },
-    "5d"
-  );
-
-  res
-    .status(200)
-    .cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 5 * 24 * 60 * 60 * 1000,
-    })
-    .json({
-      message: "Signin successful",
-      user: {
-        id: existingUser.id,
-        name: existingUser.name,
-        email: existingUser.email,
-        phone: existingUser.phone,
+    const token = generateToken(
+      {
+        uid: user.id,
+        isAdmin: user.isAdmin,
+        role: user.isAdmin ? "admin" : "user",
       },
-    });
+      "5d"
+    );
+
+    await redisOtp.del(redisOtpKey);
+    await redisOtp.del(redisUserKey);
+
+    res
+      .status(200)
+      .cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 5 * 24 * 60 * 60 * 1000,
+      })
+      .json({
+        message: "Signup successful",
+        user: { id: user.id, email: user.email, name: user.name },
+      });
+  } catch (err) {
+    next(err);
+  }
 };
 
-// signin route : user signin to sent otp Controller
-export const handleOtpSigninInitiate = async (req: Request, res: Response) => {
-  const { phone } = req.body;
+// signin with password
+export const handleUserSignin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { identifierType, email, phone, password } = req.body;
 
-  const existingUser = await findUserByPhone(phone);
-  if (!existingUser) {
-    throw { status: 404, message: "User not found. Please sign up first." };
-  }
+    let existingUser;
+    if (identifierType === "email" && email) {
+      existingUser = await findUserByEmail(email);
+    } else if (identifierType === "phone" && phone) {
+      existingUser = await findUserByPhone(phone);
+    }
 
-  const otp = generateOTP(); // e.g. 4 or 6 digit code
-  const redisKey = `otp:${phone}`;
-  await redis.set(redisKey, otp, { EX: 300 }); // expires in 5 minutes
+    if (!existingUser) {
+      const error = new Error("User not found") as any;
+      error.statusCode = 404;
+      throw error;
+    }
 
-  const sent = await sendOtpSms(phone, otp);
-  if (!sent) {
-    throw { status: 500, message: "Failed to send OTP. Please try again." };
-  }
+    const isPasswordCorrect = await comparePassword(
+      password,
+      existingUser.password
+    );
+    if (!isPasswordCorrect) {
+      const error = new Error("Unauthorized: Incorrect password") as any;
+      error.statusCode = 401;
+      throw error;
+    }
 
-  res.status(200).json({ message: "OTP sent successfully" });
-};
+    if (req.user?.role === "guest") {
+      await mergeGuestCart(req.user.uid, existingUser.id);
+    }
 
-// signin route : user signin to verify otp Controller
-export const handleUserSigninWithOtp = async (req: AuthRequest, res: Response) => {
-  const { phone, otp } = req.body;
-
-  const redisOtpKey = `otp:${phone}`;
-  const storedOtp = await redis.get(redisOtpKey);
-
-  if (!storedOtp) {
-    throw { status: 410, message: "OTP expired or not found" };
-  }
-
-  if (storedOtp !== otp) {
-    throw { status: 401, message: "Invalid OTP" };
-  }
-
-  const existingUser = await findUserByPhone(phone);
-  if (!existingUser) {
-    throw { status: 404, message: "User not found. Please sign up first." };
-  }
-
-  if (req.user?.role === "guest") {
-    await mergeGuestCart(req.user.uid, existingUser.id);
-  }
-
-  const token = generateToken(
-    {
-      uid: existingUser.id,
-      isAdmin: existingUser.isAdmin,
-      role: existingUser.isAdmin ? "admin" : "user",
-    },
-    "5d"
-  );
-
-  await redis.del(redisOtpKey);
-
-  res
-    .status(200)
-    .cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 5 * 24 * 60 * 60 * 1000,
-    })
-    .json({
-      message: "Signin successful",
-      user: {
-        id: existingUser.id,
-        email: existingUser.email,
-        name: existingUser.name,
+    const token = generateToken(
+      {
+        uid: existingUser.id,
+        isAdmin: existingUser.isAdmin,
+        role: existingUser.isAdmin ? "admin" : "user",
       },
-    });
+      "5d"
+    );
+
+    res
+      .status(200)
+      .cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 5 * 24 * 60 * 60 * 1000,
+      })
+      .json({
+        message: "Signin successful",
+        user: {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          phone: existingUser.phone,
+        },
+      });
+  } catch (err) {
+    next(err);
+  }
 };
 
-//check existingUser in the database for query
+// initiate signin with OTP
+export const handleOtpSigninInitiate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone } = req.body;
+
+    const existingUser = await findUserByPhone(phone);
+    if (!existingUser) {
+      const error = new Error("User not found. Please sign up first.") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const otp = generateOTP();
+    await redisOtp.set(`otp:${phone}`, otp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, otp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP. Please try again.") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    res.status(200).json({ message: "OTP sent successfully" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// confirm signin with OTP
+export const handleUserSigninWithOtp = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone, otp } = req.body;
+
+    const redisOtpKey = `otp:${phone}`;
+    const storedOtp = await redisOtp.get(redisOtpKey);
+
+    if (!storedOtp) {
+      const error = new Error("OTP expired or not found") as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    if (storedOtp !== otp) {
+      const error = new Error("Invalid OTP") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const existingUser = await findUserByPhone(phone);
+    if (!existingUser) {
+      const error = new Error("User not found. Please sign up first.") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (req.user?.role === "guest") {
+      await mergeGuestCart(req.user.uid, existingUser.id);
+    }
+
+    const token = generateToken(
+      {
+        uid: existingUser.id,
+        isAdmin: existingUser.isAdmin,
+        role: existingUser.isAdmin ? "admin" : "user",
+      },
+      "5d"
+    );
+
+    await redisOtp.del(redisOtpKey);
+
+    res
+      .status(200)
+      .cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 5 * 24 * 60 * 60 * 1000,
+      })
+      .json({
+        message: "Signin successful",
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+        },
+      });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// check if user exists by UID in token
 export const queryExistingUserCheck = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-  const uid = req.user?.uid;
+  try {
+    const uid = req.user?.uid;
 
-  if (!uid) {
-    throw { status: 400, message: "Uid is required" };
+    if (!uid) {
+      const error = new Error("Uid is required") as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: uid } });
+    if (!user) {
+      const error = new Error("User not found") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+
+    next();
+  } catch (err) {
+    next(err);
   }
-
-  const user = await prisma.user.findUnique({
-    where: { id: uid },
-  });
-
-  if (!user) {
-    throw { status: 404, message: "User not found" };
-  }
-
-  next();
 };
 
-// Change user name
-export const handleUserName = async (req: AuthRequest, res: Response) => {
-  const { name } = req.body;
+// change user name
+export const handleUserName = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { name } = req.body;
 
-  if (!name || typeof name !== "string" || name.trim().length < 2) {
-    throw { status: 400, message: "Invalid name" };
+    if (!name || typeof name !== "string" || name.trim().length < 2) {
+      const error = new Error("Invalid name") as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const uid = req.user?.uid;
+    if (!uid) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: uid },
+      data: { name },
+    });
+
+    res.status(200).json({
+      message: "Name changed successfully",
+      user: updatedUser,
+    });
+  } catch (err) {
+    next(err);
   }
-
-  const uid = req.user?.uid;
-
-  if (!uid) {
-    throw { status: 401, message: "Unauthorized" };
-  }
-
-  const updatedUser = await prisma.user.update({
-    where: { id: uid },
-    data: { name },
-  });
-
-  res.status(200).json({
-    message: "Name changed successfully",
-    user: updatedUser,
-  });
 };

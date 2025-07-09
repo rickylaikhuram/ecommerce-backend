@@ -7,6 +7,7 @@ import {
 } from "../middlewares/validate.middlewares";
 import {
   handleOtpSigninInitiate,
+  handleResendSignupOtp,
   handleUserName,
   handleUserSignin,
   handleUserSigninWithOtp,
@@ -25,12 +26,19 @@ router.post(
   userSignupInputValidationMiddleware,
   handleUserSignUpVerify
 );
+
+router.post(
+  "/signup/resend",
+  identifySessionUser,
+  handleResendSignupOtp
+);
 router.post(
   "/signup/confirm",
   identifySessionUser,
   validateOtpInput,
   handleVerifiedUserSignup
 );
+
 
 //user signin routes
 // Password-based sign-in

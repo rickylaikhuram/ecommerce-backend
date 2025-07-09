@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { getUploadUrl, deleteS3File } from "../services/s3.service";
 
+//generate presigned url from s3
 export const generateUploadUrl = async (req: Request, res: Response) => {
   const { files } = req.body;
 
@@ -23,6 +24,7 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
   res.json({ signedUrls: uploadDataArray });
 };
 
+// delete image from s3
 export const deleteImage = async (req: Request, res: Response) => {
   const { key } = req.body;
 

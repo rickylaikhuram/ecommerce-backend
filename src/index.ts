@@ -7,7 +7,7 @@ import admin from "./routes/admin.routes";
 import me from "./routes/auth.routes";
 import products from "./routes/product.routes";
 import { errorHandler } from "./middlewares/error.middleware";
-import { connectRedis } from "./config/redis";
+import { connectRedisClients } from "./config/redis";
 
 dotenv.config();
 
@@ -17,7 +17,12 @@ const PORT = Number(process.env.PORT) || 3000;
 // Middlewares
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173", 
+    credentials: true,
+  })
+);
 
 // Check if user is logged in
 app.use("/api/me", me);
@@ -33,7 +38,7 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   //Connect Redis
-  await connectRedis();
+  await connectRedisClients();
 
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
