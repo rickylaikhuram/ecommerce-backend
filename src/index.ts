@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import user from "./routes/user.routes";
 import admin from "./routes/admin.routes";
-import me from "./routes/auth.routes";
+import auth from "./routes/auth.routes";
 import products from "./routes/product.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 import { connectRedisClients } from "./config/redis";
@@ -25,7 +25,7 @@ app.use(
 );
 
 // Check if user is logged in
-app.use("/api/me", me);
+app.use("/api/auth", auth);
 
 // Routes
 app.use("/api/user", user);

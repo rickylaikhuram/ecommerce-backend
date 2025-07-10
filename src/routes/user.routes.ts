@@ -6,16 +6,18 @@ import {
   validatePhone,
 } from "../middlewares/validate.middlewares";
 import {
-  handleOtpSigninInitiate,
-  handleResendSignupOtp,
   handleUserName,
+  queryExistingUserCheck,
+} from "../controllers/user.controller";
+import {handleOtpSigninInitiate,
+  handleResendSignupOtp,
+  
   handleUserSignin,
   handleUserSigninWithOtp,
   handleUserSignUpVerify,
-  handleVerifiedUserSignup,
-  queryExistingUserCheck,
-} from "../controllers/user.controller";
+  handleVerifiedUserSignup,}from "../controllers/auth.controller"
 import { identifySessionUser } from "../middlewares/auth.middlewares";
+import { logoutUser } from "../controllers/auth.controller";
 
 const router = Router();
 
@@ -27,18 +29,13 @@ router.post(
   handleUserSignUpVerify
 );
 
-router.post(
-  "/signup/resend",
-  identifySessionUser,
-  handleResendSignupOtp
-);
+router.post("/signup/resend", identifySessionUser, handleResendSignupOtp);
 router.post(
   "/signup/confirm",
   identifySessionUser,
   validateOtpInput,
   handleVerifiedUserSignup
 );
-
 
 //user signin routes
 // Password-based sign-in
@@ -58,7 +55,12 @@ router.post(
 );
 
 // OTP verify
-router.post("/signin/otp/verify",identifySessionUser, validateOtpInput, handleUserSigninWithOtp);
+router.post(
+  "/signin/otp/verify",
+  identifySessionUser,
+  validateOtpInput,
+  handleUserSigninWithOtp
+);
 
 //update user name route
 router.put(
@@ -67,5 +69,7 @@ router.put(
   queryExistingUserCheck,
   handleUserName
 );
+// log out user
+router.post("/logout", logoutUser);
 
 export default router;

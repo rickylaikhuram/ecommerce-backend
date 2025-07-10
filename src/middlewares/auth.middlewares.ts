@@ -34,9 +34,9 @@ export const identifySessionUser = async (
       res.cookie("token", guestToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 1 * 24 * 60 * 60 * 1000, // 1 day
-      });
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 1 * 24 * 60 * 60 * 1000,
+      })
 
       req.user = guestDecoded;
       return next();
