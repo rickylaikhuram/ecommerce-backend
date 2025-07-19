@@ -9,6 +9,7 @@ export const getUploadUrl = async (fileName: string, fileType: string) => {
     Bucket: process.env.AWS_BUCKET_NAME!,
     Key: key,
     ContentType: fileType,
+    CacheControl: 'public, max-age=31536000',
   });
 
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 });

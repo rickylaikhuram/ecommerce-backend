@@ -1,27 +1,38 @@
 import { Request, Response } from "express";
 import { getUploadUrl, deleteS3File } from "../services/s3.service";
 
-//generate presigned url from s3
+// Generate presigned URLs for multiple images
 export const generateUploadUrl = async (req: Request, res: Response) => {
   const { files } = req.body;
 
   if (!Array.isArray(files) || files.length === 0) {
-    throw { status: 400, message: "No files provided" };
+    res.status(400).json({ message: "No files provided" });
+    return;
   }
 
-  const uploadDataArray = await Promise.all(
-    files.map(
-      ({
-        sanitizedFileName,
-        fileType,
-      }: {
-        sanitizedFileName: string;
-        fileType: string;
-      }) => getUploadUrl(sanitizedFileName, fileType)
-    )
-  );
+  if (files.length > 10) {
+    res.status(400).json({ message: "Maximum 10 images allowed" });
+    return;
+  }
 
-  res.json({ signedUrls: uploadDataArray });
+  try {
+    const uploadDataArray = await Promise.all(
+      files.map(async ({ sanitizedFileName, fileType }, index) => {
+        const uploadData = await getUploadUrl(sanitizedFileName, fileType);
+        return {
+          ...uploadData,
+          index, // Include index to maintain order
+        };
+      })
+    );
+    console.log(uploadDataArray)
+
+    res.json({ signedUrls: uploadDataArray });
+    return
+  } catch (error) {
+    console.error("Error generating presigned URLs:", error);
+    res.status(500).json({ message: "Failed to generate upload URLs" });
+  }
 };
 
 // delete image from s3
@@ -33,5 +44,5 @@ export const deleteImage = async (req: Request, res: Response) => {
   }
 
   await deleteS3File(key);
-  res.json({ success: true , message: "Image deleted" });
+  res.json({ success: true, message: "Image deleted" });
 };

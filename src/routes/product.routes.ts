@@ -1,11 +1,18 @@
 import { Router } from "express";
 import { identifySessionUser } from "../middlewares/auth.middlewares";
-import { handleViewingAllProducts, handleViewingCategoryProducts } from "../controllers/userProduct.controller";
+import { handleGetFilteredProducts, handleGetProductById } from "../controllers/userProduct.controller";
 const router = Router();
 
 //get all the products
-router.get("/all", identifySessionUser, handleViewingAllProducts);
+router.get("/", identifySessionUser, handleGetFilteredProducts);
 
-router.get("/bycategory",identifySessionUser,handleViewingCategoryProducts)
+// Single product detail
+router.get("/:id", identifySessionUser, handleGetProductById);
+
+// // 2. Search with autocomplete
+// router.get("/search", identifySessionUser, handleProductSearch);
+
+// // 3. Related/Similar products
+// router.get("/:id/related", identifySessionUser, handleGetRelatedProducts);
 
 export default router;

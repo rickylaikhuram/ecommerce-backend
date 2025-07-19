@@ -214,7 +214,9 @@ export const adminPreSignedInputValidation = async (
   next: NextFunction
 ) => {
   try {
-    const parsed = fileUploadSchema.safeParse(req.body);
+    console.log(req.body.files)
+    const parsed = fileUploadSchema.safeParse(req.body.files);
+    console.log(parsed)
 
     if (!parsed.success) {
       throw {
@@ -224,7 +226,7 @@ export const adminPreSignedInputValidation = async (
       };
     }
 
-    req.body.files = parsed.data.files.map((file) => ({
+    req.body.files = parsed.data.map((file) => ({
       sanitizedFileName: sanitizeFileName(file.fileName),
       fileType: file.fileType,
     }));

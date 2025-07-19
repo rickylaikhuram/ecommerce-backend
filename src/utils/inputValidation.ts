@@ -28,27 +28,25 @@ export const otpSchema = z
   .length(6, "OTP must be exactly 6 digits")
   .regex(/^\d{6}$/, "OTP must contain only digits");
 
-export const fileUploadSchema = z.object({
-  files: z.array(
-    z.object({
-      fileName: z.string().min(1),
-      fileType: z.enum([
-        // ✅ Image formats
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif",
+export const fileUploadSchema = z.array(
+  z.object({
+    fileName: z.string().min(1),
+    fileType: z.enum([
+      // ✅ Image formats
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
 
-        // ✅ Video formats
-        "video/mp4",
-        "video/webm",
-        "video/quicktime", // .mov
-        "video/x-matroska", // .mkv
-        "video/avi",
-      ]),
-    })
-  ),
-});
+      // ✅ Video formats
+      "video/mp4",
+      "video/webm",
+      "video/quicktime", // .mov
+      "video/x-matroska", // .mkv
+      "video/avi",
+    ]),
+  })
+);
 
 export const imageSchema = z.array(
   z.object({
@@ -61,11 +59,11 @@ export const imageSchema = z.array(
 export const stockSchema = z.array(
   z.object({
     stockName: z.string().min(1),
-    stock: z.number()
+    stock: z.number(),
   })
 );
 export const deleteStockSchema = z.array(
   z.object({
-    stockName: z.string().min(1)
+    stockName: z.string().min(1),
   })
 );

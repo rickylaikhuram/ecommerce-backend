@@ -27,6 +27,15 @@ export const handleAddCategory = async (req: Request, res: Response) => {
     category: { name: createCategory.name },
   });
 };
+export const handleGetCategory = async (req: Request, res: Response) => {
+  // get all category
+  const allCategory = await prisma.category.findMany({});
+
+  res.status(200).json({
+    message: "Get all Category successfully",
+    category: allCategory,
+  });
+};
 
 //add product controller
 export const handleAddProduct = async (req: Request, res: Response) => {

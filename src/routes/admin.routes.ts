@@ -13,6 +13,7 @@ import {
   handleAddProduct,
   handleAddStock,
   handleDeleteStock,
+  handleGetCategory,
   handleUpdateStock,
 } from "../controllers/adminProduct.controller";
 import { generateUploadUrl } from "../controllers/s3.controller";
@@ -46,6 +47,13 @@ router.post(
   isAdmin,
   adminCategoryInputValidation,
   handleAddCategory
+);
+// admin get categories
+router.get(
+  "/get/categories",
+  identifySessionUser,
+  isAdmin,
+  handleGetCategory
 );
 
 // admin add stock
