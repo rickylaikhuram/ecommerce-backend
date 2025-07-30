@@ -11,10 +11,21 @@ import {
   imageSchema,
   stockSchema,
   deleteStockSchema,
+  isPublishedSchema,
+  categorySchema,
+  addToCartSchema,
+  checkProductsSchema,
+  updateQuantitySchema,
+  cartItemIdSchema,
+  createAddressSchema,
 } from "../utils/inputValidation";
 import { sanitizeFileName } from "../utils/sanatizeString";
 
 dotenv.config();
+
+// 
+// USER SIGN IN SIGN UP ROUTES
+//
 
 //user sign up input validation middleware using zod
 export const userSignupInputValidationMiddleware = async (
@@ -26,9 +37,13 @@ export const userSignupInputValidationMiddleware = async (
     const { name, email, phone, password } = req.body;
     const errors: Record<string, string[]> = {};
 
+    // Convert email to lowercase before validation
+    const normalizedEmail =
+      typeof email === "string" ? email.toLowerCase() : email;
+
     // Validate all fields
     const nameParsed = stringSchema.safeParse(name);
-    const emailParsed = emailSchema.safeParse(email);
+    const emailParsed = emailSchema.safeParse(normalizedEmail);
     const phoneParsed = indianPhoneNumberSchema.safeParse(phone);
     const passwordParsed = passwordSchema.safeParse(password);
 
@@ -89,10 +104,12 @@ export const userSignInInputValidationMiddleware = async (
       };
     }
 
-    // Validate identifier based on type
+    // Normalize and validate identifier based on type
     let identifierParsed;
     if (identifierType === "email") {
-      identifierParsed = emailSchema.safeParse(identifier);
+      const normalizedEmail =
+        typeof identifier === "string" ? identifier.toLowerCase() : identifier;
+      identifierParsed = emailSchema.safeParse(normalizedEmail);
       if (!identifierParsed.success) {
         errors.identifier = identifierParsed.error.format()._errors;
       }
@@ -207,6 +224,10 @@ export const validateOtpInput = (
   }
 };
 
+// 
+// ADMIN RELATED VALIDATION ROUTES
+//
+
 // admin get presigned url input validation
 export const adminPreSignedInputValidation = async (
   req: Request,
@@ -214,9 +235,9 @@ export const adminPreSignedInputValidation = async (
   next: NextFunction
 ) => {
   try {
-    console.log(req.body.files)
+    console.log(req.body.files);
     const parsed = fileUploadSchema.safeParse(req.body.files);
-    console.log(parsed)
+    console.log(parsed);
 
     if (!parsed.success) {
       throw {
@@ -248,58 +269,56 @@ export const adminCategoryInputValidation = async (
   next: NextFunction
 ) => {
   try {
-    const { category } = req.body;
-    const errors: Record<string, string[]> = {};
+    const result = categorySchema.safeParse(req.body);
 
-    const categoryParsed = stringSchema.safeParse(category);
-
-    if (!categoryParsed.success) {
-      errors.category = categoryParsed.error.format()._errors;
-    }
-
-    if (Object.keys(errors).length > 0) {
+    if (!result.success) {
+      const errors = result.error.format();
       throw {
         statusCode: 411,
         message: "Validation failed",
-        errors,
+        errors: errors,
       };
     }
 
-    // Keep other req.body fields if needed
-    Object.assign(req.body, {
-      category: categoryParsed.data,
-    });
-
+    req.body = result.data;
     next();
   } catch (error: any) {
-    throw {
-      statusCode: error?.statusCode || 500,
+    res.status(error?.statusCode || 500).json({
+      success: false,
       message: error?.message || "Internal server error",
-      error: error?.errors || error,
-    };
+      errors: error?.errors || error,
+    });
   }
 };
 
+// validate product core
 export const validateProductCore = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { name, description, category } = req.body;
-    const productFakePrice = Number(req.body.fakePrice);
-    const productPrice = Number(req.body.price);
+    const { name, description, category, isActive } = req.body;
+    const productOriginalPrice = Number(req.body.originalPrice);
+    const productDiscountedPrice = Number(req.body.discountedPrice);
 
     const errors: Record<string, string[]> = {};
 
     const productNameParsed = stringSchema.safeParse(name);
     const productDescriptionParsed = stringSchema.safeParse(description);
     const productCategoryParsed = stringSchema.safeParse(category);
-    const productFakePriceParsed = numberSchema.safeParse(productFakePrice);
-    const productPriceParsed = numberSchema.safeParse(productPrice);
+    const productOriginalPriceParsed =
+      numberSchema.safeParse(productOriginalPrice);
+    const productDiscountedPriceParsed = numberSchema.safeParse(
+      productDiscountedPrice
+    );
+    const productIsActiveParsed = isPublishedSchema.safeParse(isActive);
 
     if (!productNameParsed.success) {
       errors.name = productNameParsed.error.format()._errors;
+    }
+    if (!productIsActiveParsed.success) {
+      errors.isActive = productIsActiveParsed.error.format()._errors;
     }
 
     if (!productDescriptionParsed.success) {
@@ -310,12 +329,13 @@ export const validateProductCore = async (
       errors.category = productCategoryParsed.error.format()._errors;
     }
 
-    if (!productFakePriceParsed.success) {
-      errors.fakePrice = productFakePriceParsed.error.format()._errors;
+    if (!productOriginalPriceParsed.success) {
+      errors.originalPrice = productOriginalPriceParsed.error.format()._errors;
     }
 
-    if (!productPriceParsed.success) {
-      errors.price = productPriceParsed.error.format()._errors;
+    if (!productDiscountedPriceParsed.success) {
+      errors.discountedPrice =
+        productDiscountedPriceParsed.error.format()._errors;
     }
 
     if (Object.keys(errors).length > 0) {
@@ -331,8 +351,9 @@ export const validateProductCore = async (
       name: productNameParsed.data,
       description: productDescriptionParsed.data,
       category: productCategoryParsed.data,
-      fakePrice: productFakePriceParsed.data,
-      price: productPriceParsed.data,
+      originalPrice: productOriginalPriceParsed.data,
+      discountedPrice: productDiscountedPriceParsed.data,
+      isActive: productIsActiveParsed.data,
     });
 
     next();
@@ -404,5 +425,108 @@ export const validateDeleteProductStock = (
   }
 
   req.body.productStocks = result.data;
+  next();
+};
+
+// 
+// USER RELATED VALIDATION ROUTES
+//
+
+// add to cart validation
+export const validateAddToCart = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = addToCartSchema.safeParse(req.body);
+
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid add to cart format",
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  req.body = result.data;
+  next();
+};
+
+// update quantity validation
+export const validateUpdateQuantity = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = updateQuantitySchema.safeParse(req.body);
+
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid quantity update format",
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  req.body = result.data;
+  next();
+};
+
+export const validateCheckProducts = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = checkProductsSchema.safeParse(req.body);
+
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid product check format",
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  req.body = result.data;
+  next();
+};
+
+// Additional validation for cart item ID in params
+export const validateCartItemId = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = cartItemIdSchema.safeParse(req.params.cartItemId);
+
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid cart item ID",
+      errors: { cartItemId: result.error.flatten().formErrors },
+    };
+  }
+
+  next();
+};
+
+// validate address data for user 
+export const validateAddressBody = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = createAddressSchema.safeParse(req.body.address);
+
+  if (!result.success) {
+    const formatted = result.error.flatten();
+    
+    throw {
+      statusCode: 400,
+      message: "Invalid address input",
+      errors: formatted.fieldErrors,
+    };
+  }
+
   next();
 };

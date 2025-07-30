@@ -67,3 +67,58 @@ export const deleteStockSchema = z.array(
     stockName: z.string().min(1),
   })
 );
+
+export const isPublishedSchema = z.coerce.boolean().default(true);
+
+// schema for category
+export const categorySchema = z.object({
+  name: z
+    .string()
+    .min(2, "Category name must be at least 2 characters")
+    .max(50, "Category name must be less than 50 characters")
+    .trim(),
+  parentId: z.string().uuid().nullable().optional(),
+});
+
+// schema for add to cart
+export const addToCartSchema = z.object({
+  productId: z.string().uuid(),
+  stockName: z.string().min(1),
+  quantity: z.number().int().positive().optional().default(1),
+});
+
+export const updateQuantitySchema = z.object({
+  quantity: z.number().int().positive(),
+});
+
+export const checkProductsSchema = z.object({
+  productIds: z
+    .array(z.string().uuid("Invalid product ID format"))
+    .min(1, "At least one product ID is required"),
+});
+
+export const cartItemIdSchema = z.string().uuid("Invalid cart item ID format");
+
+// Custom Indian ZIP code (PIN code) schema
+export const indianZipCodeSchema = z.string().regex(/^[1-9][0-9]{5}$/, {
+  message: "Must be a valid 6-digit Indian PIN code.",
+});
+
+// add address input validation
+const baseAddressSchema = z.object({
+  fullName: z.string().min(1),
+  phone: indianPhoneNumberSchema,
+  alternatePhone: indianPhoneNumberSchema.optional(),
+  line1: z.string().min(1),
+  line2: z.string().optional(),
+  landmark: z.string().optional(),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  country: z.string().min(1),
+  zipCode: indianZipCodeSchema,
+  label: z.string().optional(),
+  isDefault: z.boolean().optional().default(false),
+});
+
+export const createAddressSchema = baseAddressSchema;
+export const updateAddressSchema = baseAddressSchema.partial(); // all fields optional

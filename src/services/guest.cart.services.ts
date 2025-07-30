@@ -19,10 +19,10 @@ export const mergeGuestCart = async (guestUid: string, userUid: string): Promise
     cartItems.map((item) =>
       prisma.cartItem.upsert({
         where: {
-          userId_productId_stockname: {
+          userId_productId_stockName: {
             userId: userUid,
             productId: item.productId,
-            stockname: item.stockname,
+            stockName: item.stockname,
           },
         },
         update: {
@@ -33,7 +33,7 @@ export const mergeGuestCart = async (guestUid: string, userUid: string): Promise
         create: {
           userId: userUid,
           productId: item.productId,
-          stockname: item.stockname,
+          stockName: item.stockname,
           quantity: item.quantity,
         },
       })

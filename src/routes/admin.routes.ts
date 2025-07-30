@@ -14,6 +14,8 @@ import {
   handleAddStock,
   handleDeleteStock,
   handleGetCategory,
+  handleGetLowLevelCategories,
+  handleGetTopLevelCategories,
   handleUpdateStock,
 } from "../controllers/adminProduct.controller";
 import { generateUploadUrl } from "../controllers/s3.controller";
@@ -40,7 +42,7 @@ router.post(
   handleAddProduct
 );
 
-// admin add category route
+// admin add category or subcategory route
 router.post(
   "/add/category",
   identifySessionUser,
@@ -48,12 +50,24 @@ router.post(
   adminCategoryInputValidation,
   handleAddCategory
 );
-// admin get categories
+
+// admin get all categories
+router.get("/get/categories", identifySessionUser, isAdmin, handleGetCategory);
+
+// admin get top categories
 router.get(
-  "/get/categories",
+  "/get/topcategories",
   identifySessionUser,
   isAdmin,
-  handleGetCategory
+  handleGetTopLevelCategories
+);
+
+// admin get sub categories
+router.get(
+  "/get/lowcategories",
+  identifySessionUser,
+  isAdmin,
+  handleGetLowLevelCategories
 );
 
 // admin add stock

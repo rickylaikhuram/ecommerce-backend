@@ -8,14 +8,16 @@ datasource db {
 }
 
 model User {
-  id       String  @id @default(uuid())
-  name     String
-  email    String  @unique
-  phone    String  @unique
-  password String
-  salt     String
-  isAdmin  Boolean @default(false)
-
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  phone         String         @unique
+  password      String
+  salt          String
+  isAdmin       Boolean        @default(false)
+  isDeleted     Boolean        @default(false) // Soft delete
+  deletedAt     DateTime? // Track when deleted
+  createdAt     DateTime       @default(now())
   wishlistItems WishlistItem[]
   addresses     Address[]
   orders        Order[]
@@ -23,21 +25,30 @@ model User {
 }
 
 model Category {
-  id       String    @id @default(uuid())
-  name     String    @unique
+  id   String @id @default(uuid())
+  name String @unique
+
+  // Self-referencing relationship
+  parentId String? // Nullable - if null, it's a top-level category
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryToCategory")
+
   products Product[]
 }
 
 model Product {
-  id          String         @id @default(uuid())
-  name        String
-  description String
-  price       Decimal
-  fakePrice   Decimal
-  images      ProductImage[]
-  totalSales  Int            @default(0)
-  views       Int            @default(0)
-  createdAt   DateTime       @default(now())
+  id              String         @id @default(uuid())
+  name            String
+  description     String
+  discountedPrice Decimal
+  originalPrice   Decimal
+  isActive        Boolean        @default(true)
+  isDeleted       Boolean        @default(false) // Soft delete
+  deletedAt       DateTime? // Track when deleted
+  images          ProductImage[]
+  totalSales      Int            @default(0)
+  views           Int            @default(0)
+  createdAt       DateTime       @default(now())
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
@@ -54,7 +65,7 @@ model ProductImage {
   altText   String?
   position  Int?
   isMain    Boolean @default(false)
-  product   Product @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId String
 }
 
@@ -64,7 +75,7 @@ model ProductStock {
   stockName String
   stock     Int
 
-  product Product @relation(fields: [productId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, stockName])
 }
@@ -73,14 +84,14 @@ model CartItem {
   id        String   @id @default(uuid())
   productId String
   userId    String
-  stockname String
+  stockName String
   quantity  Int      @default(1)
   addedAt   DateTime @default(now())
 
-  product Product @relation(fields: [productId], references: [id])
-  user    User?   @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, productId, stockname])
+  @@unique([userId, productId, stockName])
 }
 
 model WishlistItem {
@@ -89,37 +100,60 @@ model WishlistItem {
   productId String
   addedAt   DateTime @default(now())
 
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
 }
 
 model Address {
-  id       String  @id @default(uuid())
-  userId   String
-  user     User    @relation(fields: [userId], references: [id])
-  fullName String
-  mobile   String
-  line1    String
-  line2    String?
-  city     String
-  state    String
-  country  String
-  zipCode  String
-  Order    Order[]
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Address details
+  fullName       String
+  phone          String
+  alternatePhone String? 
+  line1          String
+  line2          String?
+  landmark       String? 
+  city           String
+  state          String
+  country        String
+  zipCode        String
+
+  // Address metadata
+  label     String? // e.g., "Home", "Office", "Mom's House"
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Order {
   id          String      @id @default(uuid())
-  userId      String
-  addressId   String
+  userId      String?
   totalAmount Decimal
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
 
-  user       User        @relation(fields: [userId], references: [id])
-  address    Address     @relation(fields: [addressId], references: [id])
+  // Customer info snapshot
+  customerName  String
+  customerEmail String
+  customerPhone String
+
+  // Shipping address snapshot
+  shippingFullName String
+  shippingPhone    String // Shipping contact phone
+  shippingLine1    String
+  shippingLine2    String?
+  shippingCity     String
+  shippingState    String
+  shippingCountry  String
+  shippingZipCode  String
+
+  // Relations
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
   payment    Payment?
 }
@@ -127,13 +161,19 @@ model Order {
 model OrderItem {
   id        String  @id @default(uuid())
   orderId   String
-  productId String
-  stockname String
+  productId String? // Nullable in case product is deleted
+  stockName String
   quantity  Int
-  price     Decimal
+  price     Decimal // Price at time of purchase
 
-  order   Order   @relation(fields: [orderId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  // Product info snapshot at time of order
+  productName        String // Store product name
+  productDescription String? // Store product description
+  productImageUrl    String? // Store main product image
+  productCategory    String? // Store category name
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 }
 
 model Payment {
@@ -144,7 +184,7 @@ model Payment {
   status        String
   paidAt        DateTime?
 
-  order Order @relation(fields: [orderId], references: [id])
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 enum OrderStatus {

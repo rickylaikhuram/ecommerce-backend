@@ -6,27 +6,68 @@ dotenv.config();
 
 //add category Controller
 export const handleAddCategory = async (req: Request, res: Response) => {
-  const { category } = req.body;
+  const { name, parentId } = req.body;
 
-  // Check if category already exists
-  const categoryExist = await prisma.category.findUnique({
-    where: { name: category },
-  });
+  // If parentId is provided, validate parent exists
+  if (parentId) {
+    const parentCategory = await prisma.category.findUnique({
+      where: { id: parentId },
+    });
 
-  if (categoryExist) {
-    throw { status: 403, message: "Category already exists" };
+    if (!parentCategory) {
+      throw { statusCode: 404, message: "Parent category not found." };
+    }
+
+    // Check if subcategory already exists under this parent
+    const existingSubCategory = await prisma.category.findFirst({
+      where: {
+        name: name.trim(),
+        parentId: parentId,
+      },
+    });
+
+    if (existingSubCategory) {
+      throw {
+        statusCode: 409,
+        message:
+          "A subcategory with this name already exists under the selected parent category.",
+      };
+    }
+  } else {
+    // Check if top-level category already exists
+    const existingCategory = await prisma.category.findFirst({
+      where: {
+        name: name.trim(),
+        parentId: null,
+      },
+    });
+
+    if (existingCategory) {
+      throw { statusCode: 403, message: "Category already exists" };
+    }
   }
 
-  // Create new category
+  // Create category/subcategory
   const createCategory = await prisma.category.create({
-    data: { name: category },
+    data: {
+      name: name.trim(),
+      parentId: parentId || null,
+    },
   });
 
-  res.status(200).json({
-    message: "Category created successfully",
-    category: { name: createCategory.name },
+  res.status(201).json({
+    success: true,
+    message: parentId
+      ? "Subcategory created successfully"
+      : "Category created successfully",
+    category: {
+      id: createCategory.id,
+      name: createCategory.name,
+      parentId: createCategory.parentId,
+    },
   });
 };
+
 export const handleGetCategory = async (req: Request, res: Response) => {
   // get all category
   const allCategory = await prisma.category.findMany({});
@@ -37,14 +78,63 @@ export const handleGetCategory = async (req: Request, res: Response) => {
   });
 };
 
+export const handleGetTopLevelCategories = async (
+  req: Request,
+  res: Response
+) => {
+  const categories = await prisma.category.findMany({
+    where: {
+      parentId: null, // Only top-level categories
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  res.status(200).json({
+    success: true,
+    categories: categories,
+  });
+};
+
+export const handleGetLowLevelCategories = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    // Get categories that are not parents of any other category
+    const leafCategories = await prisma.category.findMany({
+      where: {
+        children: {
+          none: {}, // No children
+        },
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      categories: leafCategories,
+    });
+  } catch (error) {
+    console.error("Error fetching low-level categories:", error);
+    throw {
+      statusCode: 500,
+      message: "Failed to fetch low-level categories",
+    };
+  }
+};
 //add product controller
 export const handleAddProduct = async (req: Request, res: Response) => {
   const {
     category,
     name,
     description,
-    fakePrice,
-    price,
+    originalPrice,
+    discountedPrice,
+    isActive,
     images,
     productStocks,
   } = req.body;
@@ -64,8 +154,9 @@ export const handleAddProduct = async (req: Request, res: Response) => {
       data: {
         name,
         description,
-        price,
-        fakePrice,
+        discountedPrice,
+        originalPrice,
+        isActive,
         categoryId: categoryExist.id,
       },
     });
@@ -100,9 +191,10 @@ export const handleAddProduct = async (req: Request, res: Response) => {
     product: {
       name: result.name,
       description: result.description,
-      price: result.price,
-      fakePrice: result.fakePrice,
+      price: result.originalPrice,
+      fakePrice: result.discountedPrice,
       categoryName: categoryExist.name,
+      isActive: result.isActive,
     },
   });
 };
