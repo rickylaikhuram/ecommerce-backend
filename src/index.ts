@@ -6,6 +6,7 @@ import user from "./routes/user.routes";
 import admin from "./routes/admin.routes";
 import auth from "./routes/auth.routes";
 import products from "./routes/product.routes";
+import paymentRoutes from "./routes/payment.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 import { connectRedisClients } from "./config/redis";
 
@@ -19,10 +20,11 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: "http://localhost:5173", 
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );
+app.use(express.urlencoded({ extended: true })); // Needed for Clover webhook
 
 // Check if user is logged in
 app.use("/api/auth", auth);
@@ -31,6 +33,8 @@ app.use("/api/auth", auth);
 app.use("/api/user", user);
 app.use("/api/admin", admin);
 app.use("/api/product", products);
+
+app.use("api/payment", paymentRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

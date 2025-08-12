@@ -114,10 +114,10 @@ model Address {
   // Address details
   fullName       String
   phone          String
-  alternatePhone String? 
+  alternatePhone String?
   line1          String
   line2          String?
-  landmark       String? 
+  landmark       String?
   city           String
   state          String
   country        String
@@ -185,6 +185,19 @@ model Payment {
   paidAt        DateTime?
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model PriceSetting {
+  id                    String   @id @default(uuid())
+  takeDeliveryFee       Boolean  @default(true) // Master switch for delivery fees
+  checkThreshold        Boolean  @default(true) // Whether to check threshold for free delivery
+  deliveryFee           Decimal  @default(0) // Delivery fee amount
+  freeDeliveryThreshold Decimal  @default(0) // Minimum order for free delivery
+  allowedZipCodes       String[] // Array of allowed zip codes
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
 }
 
 enum OrderStatus {

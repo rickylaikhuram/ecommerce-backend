@@ -23,7 +23,7 @@ import { sanitizeFileName } from "../utils/sanatizeString";
 
 dotenv.config();
 
-// 
+//
 // USER SIGN IN SIGN UP ROUTES
 //
 
@@ -224,7 +224,7 @@ export const validateOtpInput = (
   }
 };
 
-// 
+//
 // ADMIN RELATED VALIDATION ROUTES
 //
 
@@ -428,7 +428,7 @@ export const validateDeleteProductStock = (
   next();
 };
 
-// 
+//
 // USER RELATED VALIDATION ROUTES
 //
 
@@ -477,7 +477,7 @@ export const validateCheckProducts = (
   res: Response,
   next: NextFunction
 ) => {
-  const result = checkProductsSchema.safeParse(req.body);
+  const result = checkProductsSchema.safeParse(req.body.productDatas);
 
   if (!result.success) {
     throw {
@@ -487,7 +487,7 @@ export const validateCheckProducts = (
     };
   }
 
-  req.body = result.data;
+  req.body.productDatas = result.data;
   next();
 };
 
@@ -510,7 +510,7 @@ export const validateCartItemId = (
   next();
 };
 
-// validate address data for user 
+// validate address data for user
 export const validateAddressBody = (
   req: Request,
   res: Response,
@@ -520,7 +520,7 @@ export const validateAddressBody = (
 
   if (!result.success) {
     const formatted = result.error.flatten();
-    
+
     throw {
       statusCode: 400,
       message: "Invalid address input",

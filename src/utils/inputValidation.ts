@@ -91,11 +91,15 @@ export const updateQuantitySchema = z.object({
   quantity: z.number().int().positive(),
 });
 
-export const checkProductsSchema = z.object({
-  productIds: z
-    .array(z.string().uuid("Invalid product ID format"))
-    .min(1, "At least one product ID is required"),
-});
+export const checkProductsSchema = z
+  .array(
+    z.object({
+      productId: z.string().uuid("Invalid product ID format"),
+      productVarient: z.string().min(1, "Product variant is required"),
+      quantity: z.number().int().min(1, "Quantity must be at least 1"),
+    })
+  )
+  .min(1, "At least one product is required");
 
 export const cartItemIdSchema = z.string().uuid("Invalid cart item ID format");
 

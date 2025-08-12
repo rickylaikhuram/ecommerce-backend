@@ -1,7 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import prisma from "../config/prisma";
 import { findProductById } from "../services/product.services";
-import { AuthRequest, CartItemResponse, CartSummary } from "../types/customTypes";
+import { AuthRequest } from "../types/customTypes";
+import { checkDeliveryAvailability } from "../services/delivery.services";
+
+//
+// PRODUCT
+//
 
 // view all the products
 export const handleGetFilteredProducts = async (
@@ -11,6 +16,9 @@ export const handleGetFilteredProducts = async (
   // Extract query parameters
   const { category, sortBy, limit, offset, filter, period, search, status } =
     req.query;
+  // Handle sizes parameter (axios sends arrays as 'sizes[]')
+  const sizes = req.query.sizes || req.query["sizes[]"];
+
   // Check user role (adjust based on your auth implementation)
   const isAdmin = req.user?.role === "admin";
 
@@ -85,14 +93,140 @@ export const handleGetFilteredProducts = async (
 
   // Add category filter
   if (category && typeof category === "string") {
-    whereConditions.push({
-      category: {
+    // First, check if this is a parent category
+    const categoryRecord = await prisma.category.findFirst({
+      where: {
         name: {
           equals: category,
           mode: "insensitive",
         },
       },
+      select: {
+        id: true,
+        parentId: true,
+      },
     });
+
+    if (categoryRecord) {
+      if (categoryRecord.parentId === null) {
+        // This is a parent category - get all child categories
+        const childCategories = await prisma.category.findMany({
+          where: {
+            parentId: categoryRecord.id,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+        if (childCategories.length > 0) {
+          // Include products from both parent and all child categories
+          whereConditions.push({
+            OR: [
+              // Products directly in parent category (if any)
+              {
+                category: {
+                  name: {
+                    equals: category,
+                    mode: "insensitive",
+                  },
+                },
+              },
+              // Products in any child category
+              {
+                category: {
+                  id: {
+                    in: childCategories.map((child) => child.id),
+                  },
+                },
+              },
+            ],
+          });
+        } else {
+          // No child categories, just match the parent category
+          whereConditions.push({
+            category: {
+              name: {
+                equals: category,
+                mode: "insensitive",
+              },
+            },
+          });
+        }
+      } else {
+        // This is already a child category - match directly
+        whereConditions.push({
+          category: {
+            name: {
+              equals: category,
+              mode: "insensitive",
+            },
+          },
+        });
+      }
+    }
+  }
+
+  // Add sizes filter
+  if (sizes) {
+    // Debug: Show all available sizes in database (remove this after debugging)
+    const availableSizes = await prisma.productStock.findMany({
+      select: { stockName: true },
+      distinct: ["stockName"],
+      take: 20, // Limit to avoid too much output
+    });
+    console.log(
+      "Available sizes in database:",
+      availableSizes.map((s) => s.stockName)
+    );
+
+    let sizeList: string[] = [];
+
+    // Handle different types that req.query can provide
+    if (Array.isArray(sizes)) {
+      // Frontend sent an array - filter to only strings
+      sizeList = sizes
+        .filter(
+          (size): size is string => typeof size === "string" && size.length > 0
+        )
+        .map((size) => size.trim());
+    } else if (typeof sizes === "string") {
+      // Handle URL encoded string format
+      let decodedSizes;
+      try {
+        decodedSizes = decodeURIComponent(sizes);
+      } catch (error) {
+        decodedSizes = sizes;
+      }
+
+      sizeList = decodedSizes
+        .split(",")
+        .map((size) => size.trim().replace(/\+/g, " "))
+        .filter((size) => size.length > 0);
+    }
+    // Ignore other types (QueryString.ParsedQs, etc.)
+
+    console.log("Sizes filter - Raw sizes:", sizes);
+    console.log("Sizes filter - Final size list:", sizeList);
+
+    if (sizeList.length > 0) {
+      // Use exact matching with case insensitive mode
+      const sizeCondition = {
+        productSizes: {
+          some: {
+            stockName: {
+              in: sizeList,
+              mode: "insensitive",
+            },
+          },
+        },
+      };
+      console.log(
+        "Sizes filter condition:",
+        JSON.stringify(sizeCondition, null, 2)
+      );
+      whereConditions.push(sizeCondition);
+    }
   }
 
   // Handle special filters (bestsellers with time period)
@@ -131,6 +265,8 @@ export const handleGetFilteredProducts = async (
   const whereClause =
     whereConditions.length > 0 ? { AND: whereConditions } : {};
 
+  console.log("Final where clause:", JSON.stringify(whereClause, null, 2));
+
   // Build orderBy clause
   let orderByClause: any = {};
 
@@ -143,10 +279,10 @@ export const handleGetFilteredProducts = async (
   } else if (sortBy && typeof sortBy === "string") {
     switch (sortBy) {
       case "price-asc":
-        orderByClause = { price: "asc" };
+        orderByClause = { discountedPrice: "asc" };
         break;
       case "price-desc":
-        orderByClause = { price: "desc" };
+        orderByClause = { discountedPrice: "desc" };
         break;
       case "name-asc":
         orderByClause = { name: "asc" };
@@ -222,6 +358,7 @@ export const handleGetFilteredProducts = async (
       },
       productSizes: {
         select: {
+          id: true,
           stockName: true,
           stock: true,
         },
@@ -256,12 +393,18 @@ export const handleGetFilteredProducts = async (
     message = `Fetched products in ${category} category`;
   }
 
+  // Add sizes info to message
+  if (sizes) {
+    const sizeList = decodeURIComponent(sizes as string).split(",");
+    message += ` with sizes: ${sizeList.join(", ")}`;
+  }
+
   res.status(200).json({
     message,
     products,
     pagination: {
       total: totalCount,
-      limit: take || null,
+      limit: take ?? 20,
       offset: skip || 0,
       hasMore: skip && take ? skip + take < totalCount : false,
     },
@@ -269,6 +412,10 @@ export const handleGetFilteredProducts = async (
     ...(search && { searchTerm: search }),
     // Include status filter info for admin
     ...(isAdmin && status && { statusFilter: status }),
+    // Include sizes filter info
+    ...(sizes && {
+      sizesFilter: decodeURIComponent(sizes as string).split(","),
+    }),
     // Include user role in response (useful for frontend)
     ...(isAdmin && { userRole: "admin" }),
   });
@@ -277,7 +424,6 @@ export const handleGetFilteredProducts = async (
 // single product detail
 export const handleGetProductById = async (req: Request, res: Response) => {
   const { id } = req.params;
-
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
@@ -332,129 +478,44 @@ export const queryExistingProductCheck = async (
   }
 };
 
-// add or remove a product to wishlist
-export const handleToggleWishlist = async (
-  req: AuthRequest,
+//
+// CATEGORY
+//
+
+export const handleGetAllCategories = async (
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { id: productId } = req.params;
-    const uid = req.user?.uid;
-
-    if (!uid) {
-      res.status(401).json({ message: "Unauthorized" });
-      return;
-    }
-
-    const existing = await prisma.wishlistItem.findFirst({
-      where: { userId: uid, productId },
-    });
-
-    if (existing) {
-      // Remove from wishlist
-      await prisma.wishlistItem.delete({
-        where: { id: existing.id },
-      });
-
-      res.status(200).json({ message: "Removed from wishlist", removed: true });
-      return;
-    } else {
-      // Add to wishlist
-      const wishlist = await prisma.wishlistItem.create({
-        data: { userId: uid, productId },
-      });
-
-      res
-        .status(200)
-        .json({ message: "Added to wishlist", wishlist, removed: false });
-      return;
-    }
-  } catch (err) {
-    next(err);
-  }
-};
-
-// get wishlisted ids for products
-export const getWishlistedProductIds = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const uid = req.user!.uid;
-
-    const items = await prisma.wishlistItem.findMany({
-      where: { userId: uid },
-      select: { productId: true },
-    });
-
-    const wishlistedIds = items.map((item) => item.productId);
-
-    res.status(200).json({ wishlistedIds });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// get wislisted product of a user
-export const getWishlist = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const uid = req.user!.uid;
-
-    const wishlist = await prisma.wishlistItem.findMany({
-      where: { userId: uid },
+    // Fetch only top-level categories with their children
+    const categories = await prisma.category.findMany({
+      where: {
+        parentId: null, // Only get top-level categories
+      },
       include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            originalPrice: true,
-            discountedPrice: true,
-            images: {
-              where: { isMain: true },
-              select: {
-                imageUrl: true,
-                altText: true,
-              },
-            },
-            productSizes: {
-              select: {
-                stock: true,
-              },
-            },
+        children: {
+          include: {
+            children: true, // Include sub-subcategories if needed
           },
         },
       },
     });
 
-    // Transform the data to include only necessary fields with stock status
-    const products = wishlist.map((item) => {
-      const totalStock = item.product.productSizes.reduce(
-        (sum, size) => sum + size.stock,
-        0
-      );
+    if (!categories || categories.length === 0) {
+      res.status(404).json({ message: "Categories not found" });
+      return;
+    }
 
-      return {
-        id: item.product.id,
-        name: item.product.name,
-        originalPrice: item.product.originalPrice,
-        discountedPrice: item.product.discountedPrice,
-        mainImage: item.product.images[0] || null,
-        inStock: totalStock > 0,
-        wishlistItemId: item.id,
-      };
-    });
-
-    res.status(200).json({ products });
+    res.json({ categories });
   } catch (error) {
     next(error);
   }
 };
+
+//
+// CART
+//
 
 // get cart
 export const getCart = async (
@@ -495,7 +556,7 @@ export const getCart = async (
                 altText: true,
               },
               orderBy: {
-                position: 'asc',
+                position: "asc",
               },
             },
             productSizes: {
@@ -508,37 +569,84 @@ export const getCart = async (
         },
       },
       orderBy: {
-        addedAt: 'desc',
+        addedAt: "desc",
       },
     });
 
-    // Filter out deleted or inactive products and transform data
-    const items: CartItemResponse[] = cartItems
-      .filter((item) => !item.product.isDeleted && item.product.isActive)
-      .map((item) => {
-        const totalStock = item.product.productSizes.reduce(
-          (sum, size) => sum + size.stock,
-          0
-        );
+    // Enhanced stock validation logic
+    const items: any[] = [];
+    let totalValidItems = 0;
+    let totalPrice = 0;
+    let hasOutOfStockItems = false;
+    let hasLowStockWarnings = false;
+    let hasQuantityIssues = false;
+    let canProceedToCheckout = true;
 
-        // Find stock for specific stockName
+    cartItems
+      .filter((item) => !item.product.isDeleted && item.product.isActive)
+      .forEach((item) => {
         const stockInfo = item.product.productSizes.find(
           (stock) => stock.stockName === item.stockName
         );
         const availableStock = stockInfo?.stock || 0;
+        const cartQuantity = item.quantity;
 
-        // Convert Decimal to number for calculations
         const originalPrice = item.product.originalPrice.toNumber();
         const discountedPrice = item.product.discountedPrice.toNumber();
 
-        return {
+        // Stock validation logic
+        let status = "available";
+        let statusCode = "IN_STOCK";
+        let message = "Item is available.";
+        let action = "proceed";
+        let itemCanCheckout = true;
+
+        if (availableStock === 0) {
+          status = "out_of_stock";
+          statusCode = "OUT_OF_STOCK";
+          message = "This item is currently out of stock.";
+          action = "remove";
+          itemCanCheckout = false;
+          hasOutOfStockItems = true;
+          canProceedToCheckout = false;
+        } else if (cartQuantity > availableStock) {
+          status = "quantity_exceeded";
+          statusCode = "QUANTITY_EXCEEDED";
+          message = `Only ${availableStock} item${
+            availableStock === 1 ? "" : "s"
+          } available. Please reduce quantity to ${availableStock}.`;
+          action = "reduce_quantity";
+          itemCanCheckout = false;
+          hasQuantityIssues = true;
+          canProceedToCheckout = false;
+        } else if (availableStock < 10) {
+          status = "low_stock_warning";
+          statusCode = "LOW_STOCK";
+          message = `Only ${availableStock} item${
+            availableStock === 1 ? "" : "s"
+          } left in stock!`;
+          action = "proceed_with_caution";
+          hasLowStockWarnings = true;
+        }
+
+        const subtotal = itemCanCheckout ? cartQuantity * discountedPrice : 0;
+        const originalSubtotal = itemCanCheckout
+          ? cartQuantity * originalPrice
+          : 0;
+
+        if (itemCanCheckout) {
+          totalValidItems += cartQuantity;
+          totalPrice += subtotal;
+        }
+
+        items.push({
           id: item.id,
           productId: item.product.id,
           name: item.product.name,
           originalPrice,
           discountedPrice,
           mainImage: item.product.images[0] || null,
-          quantity: item.quantity,
+          quantity: cartQuantity,
           stockName: item.stockName,
           addedAt: item.addedAt,
           category: {
@@ -546,28 +654,75 @@ export const getCart = async (
             name: item.product.category.name,
             parentCategory: item.product.category.parent || null,
           },
-          inStock: totalStock > 0,
+          // Enhanced stock information
+          status,
+          statusCode,
+          message,
+          action,
+          canProceedToCheckout: itemCanCheckout,
+          stockInfo: {
+            availableStock,
+            cartQuantity,
+            maxAllowed: Math.min(cartQuantity, availableStock),
+            isOutOfStock: availableStock === 0,
+            isLowStock: availableStock < 10 && availableStock > 0,
+          },
+          // Original fields for backward compatibility
+          inStock: availableStock > 0,
           stockVariantInStock: availableStock > 0,
           availableStock,
-          subtotal: item.quantity * discountedPrice,
-          originalSubtotal: item.quantity * originalPrice,
-          discount: item.quantity * (originalPrice - discountedPrice),
-        };
+          subtotal,
+          originalSubtotal,
+          discount: originalSubtotal - subtotal,
+        });
       });
 
-    // Calculate cart summary
-    const summary: CartSummary = {
+    // Overall cart status
+    let overallStatus = "ready";
+    let checkoutMessage = "Your cart is ready for checkout.";
+
+    if (hasOutOfStockItems || hasQuantityIssues) {
+      overallStatus = "requires_action";
+      if (hasOutOfStockItems && hasQuantityIssues) {
+        checkoutMessage =
+          "Some items are out of stock and others exceed available quantity. Please review your cart.";
+      } else if (hasOutOfStockItems) {
+        checkoutMessage =
+          "Some items in your cart are out of stock. Please remove them to continue.";
+      } else {
+        checkoutMessage =
+          "Some items exceed available stock. Please adjust quantities to continue.";
+      }
+    } else if (hasLowStockWarnings) {
+      overallStatus = "low_stock_warning";
+      checkoutMessage =
+        "Some items have limited stock. Complete your purchase soon!";
+    }
+
+    // Enhanced summary
+    const summary = {
       totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
       totalUniqueItems: items.length,
-      totalPrice: items.reduce((sum, item) => sum + item.subtotal, 0),
+      totalPrice,
+      totalValidItems,
       totalOriginalPrice: items.reduce(
         (sum, item) => sum + item.originalSubtotal,
         0
       ),
       totalDiscount: items.reduce((sum, item) => sum + item.discount, 0),
+      // Cart health information
+      overallStatus,
+      canProceedToCheckout,
+      checkoutMessage,
+      hasOutOfStockItems,
+      hasLowStockWarnings,
+      hasQuantityIssues,
+      itemsRequiringAttention: items.filter(
+        (item) => !item.canProceedToCheckout
+      ).length,
     };
 
-    res.status(200).json({ 
+    res.status(200).json({
       items,
       summary,
     });
@@ -667,6 +822,16 @@ export const updateCartItemQuantity = async (
     const { cartItemId } = req.params;
     const { quantity } = req.body;
 
+    // Validate quantity
+    if (quantity < 0) {
+      res.status(400).json({
+        success: false,
+        error: "INVALID_QUANTITY",
+        message: "Quantity cannot be negative",
+      });
+      return;
+    }
+
     // Get cart item with product stock info
     const cartItem = await prisma.cartItem.findFirst({
       where: {
@@ -683,18 +848,23 @@ export const updateCartItemQuantity = async (
     });
 
     if (!cartItem) {
-      throw {
-        statusCode: 404,
+      res.status(404).json({
+        success: false,
+        error: "ITEM_NOT_FOUND",
         message: "Cart item not found",
-      };
+      });
+      return;
     }
 
     // Check if product is still available
     if (cartItem.product.isDeleted || !cartItem.product.isActive) {
-      throw {
-        statusCode: 400,
+      res.status(400).json({
+        success: false,
+        error: "PRODUCT_UNAVAILABLE",
         message: "Product is no longer available",
-      };
+        action: "remove",
+      });
+      return;
     }
 
     // Check stock for the specific variant
@@ -702,30 +872,61 @@ export const updateCartItemQuantity = async (
       (size) => size.stockName === cartItem.stockName
     );
 
-    if (!stockInfo || quantity > stockInfo.stock) {
-      throw {
-        statusCode: 400,
-        message: "Insufficient stock",
-        data: {
-          availableStock: stockInfo?.stock || 0,
+    const currentStock = stockInfo?.stock || 0;
+
+    // Handle different stock scenarios
+    if (currentStock === 0) {
+      res.status(400).json({
+        success: false,
+        error: "OUT_OF_STOCK",
+        message: "This item is now out of stock",
+        availableStock: 0,
+        requestedQuantity: quantity,
+        currentCartQuantity: cartItem.quantity,
+        action: "remove",
+        productInfo: {
+          name: cartItem.product.name,
+          size: cartItem.stockName,
         },
-      };
+      });
+      return;
     }
 
-    // Update quantity
+    if (quantity > currentStock) {
+      res.status(400).json({
+        success: false,
+        error: "INSUFFICIENT_STOCK",
+        message: `Only ${currentStock} item${
+          currentStock === 1 ? "" : "s"
+        } available`,
+        availableStock: currentStock,
+        requestedQuantity: quantity,
+        currentCartQuantity: cartItem.quantity,
+        maxAllowed: currentStock,
+        action: "reduce_quantity",
+        productInfo: {
+          name: cartItem.product.name,
+          size: cartItem.stockName,
+        },
+      });
+      return;
+    }
+
+    // Update quantity (all validations passed)
     await prisma.cartItem.update({
       where: { id: cartItemId },
       data: { quantity },
     });
 
-    // Return updated cart
+    // Return updated cart using the enhanced getCart function
+    req.url = "/cart"; // Set URL for getCart to work properly
     await getCart(req, res, next);
   } catch (error) {
     next(error);
   }
 };
 
-// remove product from cart 
+// remove product from cart
 export const removeFromCart = async (
   req: AuthRequest,
   res: Response,
@@ -804,7 +1005,36 @@ export const checkProductsInCart = async (
 ) => {
   try {
     const uid = req.user!.uid;
-    const { productIds } = req.body;
+    const productDatas = req.body.productDatas as {
+      productId: string;
+      productVarient: string;
+      quantity: number;
+    }[];
+
+    const productIds = productDatas.map((p) => p.productId);
+
+    // Fetch products and cart items from the database.
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+        isActive: true,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        discountedPrice: true,
+        originalPrice: true,
+        images: {
+          where: { isMain: true },
+          select: { imageUrl: true, altText: true },
+        },
+        productSizes: {
+          select: { stockName: true, stock: true },
+        },
+      },
+    });
 
     const cartItems = await prisma.cartItem.findMany({
       where: {
@@ -812,30 +1042,283 @@ export const checkProductsInCart = async (
         productId: { in: productIds },
       },
       select: {
+        id: true,
         productId: true,
         stockName: true,
         quantity: true,
-        id: true,
       },
     });
 
-    // Group by productId
-    const cartStatus = productIds.reduce((acc: Record<string, any>, productId: string) => {
-      const items = cartItems.filter(item => item.productId === productId);
-      acc[productId] = {
-        inCart: items.length > 0,
-        variants: items.map(item => ({
-          cartItemId: item.id,
-          stockName: item.stockName,
-          quantity: item.quantity,
-        })),
-      };
-      return acc;
-    }, {});
+    // Create a map of cart items for easy lookup
+    const cartMap = new Map<string, Map<string, (typeof cartItems)[0]>>();
+    cartItems.forEach((item) => {
+      if (!cartMap.has(item.productId)) {
+        cartMap.set(item.productId, new Map());
+      }
+      cartMap.get(item.productId)!.set(item.stockName, item);
+    });
 
-    res.status(200).json(cartStatus);
-  } catch (error) {
-    next(error);
+    // Preparing response data
+    const responseProducts: any[] = [];
+    let totalValidItems = 0;
+    let totalPrice = 0;
+    let hasOutOfStockItems = false;
+    let hasLowStockWarnings = false;
+    let hasQuantityIssues = false;
+
+    for (const { productId, productVarient } of productDatas) {
+      const product = products.find((p) => p.id === productId);
+
+      if (!product) {
+        responseProducts.push({
+          productId,
+          status: "error",
+          statusCode: "PRODUCT_NOT_FOUND",
+          message: "Product not found or no longer available.",
+          action: "remove",
+          canProceedToCheckout: false,
+        });
+        continue;
+      }
+
+      const variant = product.productSizes.find(
+        (v) => v.stockName === productVarient
+      );
+
+      if (!variant) {
+        responseProducts.push({
+          productId,
+          status: "error",
+          statusCode: "VARIANT_NOT_FOUND",
+          message: `Size ${productVarient} is no longer available.`,
+          action: "remove",
+          canProceedToCheckout: false,
+          productDetails: {
+            id: product.id,
+            name: product.name,
+            discountedPrice: product.discountedPrice,
+            originalPrice: product.originalPrice,
+            mainImage: product.images[0] || null,
+          },
+        });
+        continue;
+      }
+
+      const itemInCart = cartMap.get(productId)?.get(productVarient);
+
+      if (!itemInCart) {
+        responseProducts.push({
+          productId,
+          status: "error",
+          statusCode: "ITEM_NOT_IN_CART",
+          message: `Item not found in your cart.`,
+          action: "remove",
+          canProceedToCheckout: false,
+        });
+        continue;
+      }
+
+      const currentStock = variant.stock;
+      const cartQuantity = itemInCart.quantity;
+      const itemTotal = cartQuantity * product.discountedPrice.toNumber();
+
+      // Handle different stock scenarios
+      if (currentStock === 0) {
+        // Out of stock - show product but indicate removal needed
+        hasOutOfStockItems = true;
+        responseProducts.push({
+          productId,
+          status: "out_of_stock",
+          statusCode: "OUT_OF_STOCK",
+          message: `This item is currently out of stock.`,
+          action: "remove",
+          canProceedToCheckout: false,
+          stockInfo: {
+            availableStock: 0,
+            cartQuantity,
+            isOutOfStock: true,
+            isLowStock: false,
+          },
+          productDetails: {
+            id: product.id,
+            name: product.name,
+            discountedPrice: product.discountedPrice,
+            originalPrice: product.originalPrice,
+            mainImage: product.images[0] || null,
+          },
+          cartDetails: {
+            cartItemId: itemInCart.id,
+            stockName: itemInCart.stockName,
+            quantity: cartQuantity,
+            itemTotal: 0, // Don't count in total
+          },
+        });
+        continue;
+      }
+
+      if (cartQuantity > currentStock) {
+        // Quantity exceeds available stock
+        hasQuantityIssues = true;
+        responseProducts.push({
+          productId,
+          status: "quantity_exceeded",
+          statusCode: "QUANTITY_EXCEEDED",
+          message: `Only ${currentStock} item${
+            currentStock === 1 ? "" : "s"
+          } available. Please reduce quantity to ${currentStock}.`,
+          action: "reduce_quantity",
+          canProceedToCheckout: false,
+          stockInfo: {
+            availableStock: currentStock,
+            cartQuantity,
+            maxAllowed: currentStock,
+            isOutOfStock: false,
+            isLowStock: currentStock < 10,
+          },
+          productDetails: {
+            id: product.id,
+            name: product.name,
+            discountedPrice: product.discountedPrice,
+            originalPrice: product.originalPrice,
+            mainImage: product.images[0] || null,
+          },
+          cartDetails: {
+            cartItemId: itemInCart.id,
+            stockName: itemInCart.stockName,
+            quantity: cartQuantity,
+            itemTotal: currentStock * product.discountedPrice.toNumber(), // Calculate with max available
+          },
+        });
+        continue;
+      }
+
+      if (currentStock < 10 && currentStock > 0) {
+        // Low stock warning but can proceed
+        hasLowStockWarnings = true;
+        totalPrice += itemTotal;
+        totalValidItems += 1;
+
+        responseProducts.push({
+          productId,
+          status: "low_stock_warning",
+          statusCode: "LOW_STOCK",
+          message: `Only ${currentStock} item${
+            currentStock === 1 ? "" : "s"
+          } left in stock!`,
+          action: "proceed_with_caution",
+          canProceedToCheckout: true,
+          stockInfo: {
+            availableStock: currentStock,
+            cartQuantity,
+            isOutOfStock: false,
+            isLowStock: true,
+          },
+          productDetails: {
+            id: product.id,
+            name: product.name,
+            discountedPrice: product.discountedPrice,
+            originalPrice: product.originalPrice,
+            mainImage: product.images[0] || null,
+          },
+          cartDetails: {
+            cartItemId: itemInCart.id,
+            stockName: itemInCart.stockName,
+            quantity: cartQuantity,
+            itemTotal,
+          },
+        });
+        continue;
+      }
+
+      // All good - normal stock levels
+      totalPrice += itemTotal;
+      totalValidItems += 1;
+
+      responseProducts.push({
+        productId,
+        status: "available",
+        statusCode: "IN_STOCK",
+        message: "Item is available.",
+        action: "proceed",
+        canProceedToCheckout: true,
+        stockInfo: {
+          availableStock: currentStock,
+          cartQuantity,
+          isOutOfStock: false,
+          isLowStock: false,
+        },
+        productDetails: {
+          id: product.id,
+          name: product.name,
+          discountedPrice: product.discountedPrice,
+          originalPrice: product.originalPrice,
+          mainImage: product.images[0] || null,
+        },
+        cartDetails: {
+          cartItemId: itemInCart.id,
+          stockName: itemInCart.stockName,
+          quantity: cartQuantity,
+          itemTotal,
+        },
+      });
+    }
+
+    // Determine overall cart status and provide guidance
+    let overallStatus = "ready";
+    let checkoutMessage = "Your cart is ready for checkout.";
+    let canProceedToCheckout = true;
+
+    if (hasOutOfStockItems || hasQuantityIssues) {
+      overallStatus = "requires_action";
+      canProceedToCheckout = false;
+      if (hasOutOfStockItems && hasQuantityIssues) {
+        checkoutMessage =
+          "Some items are out of stock and others exceed available quantity. Please review your cart.";
+      } else if (hasOutOfStockItems) {
+        checkoutMessage =
+          "Some items in your cart are out of stock. Please remove them to continue.";
+      } else {
+        checkoutMessage =
+          "Some items exceed available stock. Please adjust quantities to continue.";
+      }
+    } else if (hasLowStockWarnings) {
+      overallStatus = "low_stock_warning";
+      checkoutMessage =
+        "Some items have limited stock. Complete your purchase soon!";
+    }
+
+    // Respond with comprehensive cart analysis
+    res.status(200).json({
+      success: true,
+      overallStatus,
+      canProceedToCheckout,
+      checkoutMessage,
+      cartSummary: {
+        totalValidItems,
+        totalPrice,
+        itemsRequiringAttention: responseProducts.filter(
+          (p) => !p.canProceedToCheckout
+        ).length,
+        hasOutOfStockItems,
+        hasLowStockWarnings,
+        hasQuantityIssues,
+      },
+      products: responseProducts,
+      recommendations: {
+        outOfStockCount: responseProducts.filter(
+          (p) => p.statusCode === "OUT_OF_STOCK"
+        ).length,
+        quantityIssuesCount: responseProducts.filter(
+          (p) => p.statusCode === "QUANTITY_EXCEEDED"
+        ).length,
+        lowStockCount: responseProducts.filter(
+          (p) => p.statusCode === "LOW_STOCK"
+        ).length,
+        actionRequired: !canProceedToCheckout,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -849,20 +1332,51 @@ export const getCartCount = async (
     const uid = req.user!.uid;
 
     const count = await prisma.cartItem.aggregate({
-      where: { 
+      where: {
         userId: uid,
         product: {
           isDeleted: false,
-          isActive: true
-        }
+          isActive: true,
+        },
       },
-      _sum: { quantity: true }
+      _sum: { quantity: true },
     });
 
-    res.status(200).json({ 
-      count: count._sum.quantity || 0 
+    res.status(200).json({
+      count: count._sum.quantity || 0,
     });
   } catch (error) {
     next(error);
+  }
+};
+
+// check delivery availability
+export const checkDeliveryController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { zipCode } = req.body;
+
+    if (!zipCode) {
+      res.status(400).json({
+        success: false,
+        message: "Zip code is required",
+      });
+      return;
+    }
+
+    // Check delivery availability
+    const deliveryCheck = await checkDeliveryAvailability(zipCode);
+
+    res.status(200).json({
+      success: true,
+      canDeliver: deliveryCheck.canDeliver,
+      message: deliveryCheck.message,
+    });
+    return;
+  } catch (err) {
+    next(err);
   }
 };

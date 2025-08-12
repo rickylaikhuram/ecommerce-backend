@@ -38,6 +38,7 @@ export const errorHandler = (
 
   res.status(err.statusCode || err.status || 500).json({
     success: false,
+    errorCode: err.errorCode || undefined, // send only if present
     message: err.message || "Internal Server Error",
   });
   return;

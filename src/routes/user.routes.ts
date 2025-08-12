@@ -18,6 +18,10 @@ import {
   patchIsDefaultAddress,
   putEditAddress,
   queryExistingUserCheck,
+  getWishlist,
+  getWishlistedProductIds,
+  handleToggleWishlist,
+  upiQrPaymentController,
 } from "../controllers/user.controller";
 import {
   handleOtpSigninInitiate,
@@ -30,10 +34,7 @@ import {
 import { identifySessionUser, isUser } from "../middlewares/auth.middlewares";
 import { logoutUser } from "../controllers/auth.controller";
 import {
-  getWishlist,
-  getWishlistedProductIds,
   getCartCount,
-  handleToggleWishlist,
   queryExistingProductCheck,
   getCart,
   addToCart,
@@ -44,6 +45,10 @@ import {
 } from "../controllers/userProduct.controller";
 
 const router = Router();
+
+//
+// USER SIGN-UP ROUTES
+//
 
 //user signup routes
 router.post(
@@ -62,7 +67,10 @@ router.post(
   handleVerifiedUserSignup
 );
 
-//user signin routes
+//
+// USER SIGN-IN ROUTES
+//
+
 // Password-based sign-in
 router.post(
   "/signin/password",
@@ -98,6 +106,11 @@ router.put(
   handleUserName
 );
 
+
+//
+// USER WISHLIST ROUTES
+//
+
 // add or remove wishlist product
 router.post(
   "/wishlist/toggle/:id",
@@ -123,6 +136,10 @@ router.get(
   getWishlist
 );
 
+//
+// CART ROUTES
+//
+
 // get cart count
 router.get("/cart/count", identifySessionUser, getCartCount);
 
@@ -134,14 +151,14 @@ router.post("/cart/add", identifySessionUser, validateAddToCart, addToCart);
 
 // Update quantity
 router.patch(
-  "/cart/update/:cartItemId",
+  "/cart/items/:cartItemId/quantity",
   identifySessionUser,
   validateUpdateQuantity,
   updateCartItemQuantity
 );
 
 // Remove from cart
-router.delete("/cart/remove/:cartItemId", identifySessionUser, removeFromCart);
+router.delete("/cart/items/:cartItemId", identifySessionUser, removeFromCart);
 
 // Clear cart
 router.delete("/cart/clear", identifySessionUser, clearCart);
@@ -153,6 +170,10 @@ router.post(
   validateCheckProducts,
   checkProductsInCart
 );
+
+//
+// USER ADDRESS ROUTES
+//
 
 // add address
 router.post(
@@ -201,6 +222,19 @@ router.delete(
   deleteAddress
 );
 
+//
+// USER ORDER ROUTES
+//
+
+router.post(
+  "/create-order/upi-qr",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  validateAddressBody,
+  validateCheckProducts,
+  upiQrPaymentController
+);
 // log out user
 router.post("/logout", logoutUser);
 

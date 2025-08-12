@@ -1,15 +1,12 @@
+import dotenv from "dotenv";
+import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "../types/customTypes";
-import dotenv from "dotenv";
 import prisma from "../config/prisma";
 import { findUserById } from "../services/user.service";
-// import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
-// import { generateToken } from "../utils/tokens";
-// import { mergeGuestCart } from "../services/guest.cart.services";
-// import { findUserByEmail, findUserByPhone } from "../services/user.service";
-// import { redisOtp } from "../config/redis";
-// import { generateOTP } from "../utils/otp";
-// import { sendOtpSms } from "../services/otp.service";
+import { redisApp } from "../config/redis";
+import { createOrderAndReserveStock } from "../services/create.order.service";
+import { createCloverOrder } from "../services/upi.qr.payment.services";
 
 dotenv.config();
 
@@ -44,6 +41,10 @@ export const queryExistingUserCheck = async (
     next(err);
   }
 };
+
+//
+// USER
+//
 
 // get existing user
 export const handleGettingUserProfile = async (
@@ -119,6 +120,138 @@ export const handleUserName = async (
     next(err);
   }
 };
+
+//
+// WISHLIST
+//
+
+// add or remove a product to wishlist
+export const handleToggleWishlist = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id: productId } = req.params;
+    const uid = req.user?.uid;
+
+    if (!uid) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const existing = await prisma.wishlistItem.findFirst({
+      where: { userId: uid, productId },
+    });
+
+    if (existing) {
+      // Remove from wishlist
+      await prisma.wishlistItem.delete({
+        where: { id: existing.id },
+      });
+
+      res.status(200).json({ message: "Removed from wishlist", removed: true });
+      return;
+    } else {
+      // Add to wishlist
+      const wishlist = await prisma.wishlistItem.create({
+        data: { userId: uid, productId },
+      });
+
+      res
+        .status(200)
+        .json({ message: "Added to wishlist", wishlist, removed: false });
+      return;
+    }
+  } catch (err) {
+    next(err);
+  }
+};
+
+// get wishlisted ids for products
+export const getWishlistedProductIds = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const uid = req.user!.uid;
+
+    const items = await prisma.wishlistItem.findMany({
+      where: { userId: uid },
+      select: { productId: true },
+    });
+
+    const wishlistedIds = items.map((item) => item.productId);
+
+    res.status(200).json({ wishlistedIds });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// get wislisted product of a user
+export const getWishlist = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const uid = req.user!.uid;
+
+    const wishlist = await prisma.wishlistItem.findMany({
+      where: { userId: uid },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            originalPrice: true,
+            discountedPrice: true,
+            images: {
+              where: { isMain: true },
+              select: {
+                imageUrl: true,
+                altText: true,
+              },
+            },
+            productSizes: {
+              select: {
+                stock: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Transform the data to include only necessary fields with stock status
+    const products = wishlist.map((item) => {
+      const totalStock = item.product.productSizes.reduce(
+        (sum, size) => sum + size.stock,
+        0
+      );
+
+      return {
+        id: item.product.id,
+        name: item.product.name,
+        originalPrice: item.product.originalPrice,
+        discountedPrice: item.product.discountedPrice,
+        mainImage: item.product.images[0] || null,
+        inStock: totalStock > 0,
+        wishlistItemId: item.id,
+      };
+    });
+
+    res.status(200).json({ products });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//
+// ADDRESS
+//
 
 // add user address
 export const createAddress = async (
@@ -254,7 +387,7 @@ export const putEditAddress = async (
       label = null,
       isDefault = false,
     } = req.body.address;
-    console.log(req.body.address)
+    console.log(req.body.address);
     const address = await prisma.address.findUnique({
       where: { id: addressId },
     });
@@ -382,6 +515,67 @@ export const deleteAddress = async (
 
     res.status(200).json({
       message: "Address deleted successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+//
+// ORDER
+//
+
+// upi qr payment
+export const upiQrPaymentController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { order, pricingResult, reservedItems } =
+      await createOrderAndReserveStock(req);
+    // reservedItems = [{ productId, variant, quantity }, ...]
+
+    // 1. Generate unique verification token (remark1)
+    const verificationToken = crypto.randomBytes(16).toString("hex");
+
+    // 2. Save mapping in Redis (per-order snapshot)
+    //    TTL matches payment timeout (30 mins + buffer)
+    await redisApp.set(
+      `order:reservation:${verificationToken}`,
+      JSON.stringify({
+        orderId: order.id,
+        userId: req.userData!.id,
+        amount: pricingResult.finalTotal,
+        items: reservedItems,
+      }),
+      "EX",
+      60 * 35
+    );
+
+    // Create payment record in DB
+    await prisma.payment.create({
+      data: {
+        orderId: order.id,
+        method: "UPI_QR_CLOVER",
+        status: "INITIATED",
+      },
+    });
+
+    // 3. Call Clover create-order API
+    const cloverOrder = await createCloverOrder(
+      order.customerPhone, // customer_mobile
+      pricingResult.finalTotal, // amount
+      order.id, // order_id
+      verificationToken // remark1
+    );
+
+    // 4. Respond to client
+    res.status(200).json({
+      success: true,
+      orderId: order.id,
+      amount: pricingResult.finalTotal,
+      paymentUrl: cloverOrder.payment_url,
     });
   } catch (err) {
     next(err);
