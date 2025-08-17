@@ -3,10 +3,336 @@ import prisma from "../config/prisma";
 import { findProductById } from "../services/product.services";
 import { AuthRequest } from "../types/customTypes";
 import { checkDeliveryAvailability } from "../services/delivery.services";
+import { AutocompleteResult } from "../types/product.types";
 
 //
 // PRODUCT
 //
+
+// autocomplete search controller
+export const handleSearchAutocomplete = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    // Extract query parameter
+    const { q, limit } = req.query;
+    
+    // Validate query parameter
+    if (!q || typeof q !== 'string') {
+      res.status(400).json({
+        message: 'Query parameter "q" is required and must be a string',
+        suggestions: []
+      });
+      return;
+    }
+
+    const query = q.trim();
+    
+    // Return empty results for very short queries to avoid too many results
+    if (query.length < 2) {
+      res.status(200).json({
+        message: 'Query too short',
+        suggestions: []
+      });
+      return;
+    }
+
+    // Parse limit with default and validation (UI-friendly limits)
+    const searchLimit = limit ? parseInt(limit as string) : 6;
+    if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 8) {
+      res.status(400).json({
+        message: 'Invalid limit parameter. Must be between 1 and 8.',
+        suggestions: []
+      });
+      return;
+    }
+
+    // Check user role for product visibility
+    const isAdmin = req.user?.role === 'admin';
+    
+    // Split search terms for better matching
+    const searchTerms = query
+      .toLowerCase()
+      .split(' ')
+      .filter(term => term.length > 0);
+
+    const results: AutocompleteResult[] = [];
+
+    // Search for products (prioritize products in limited results)
+    const productLimit = Math.max(1, Math.ceil(searchLimit * 0.7)); // ~70% for products
+    
+    const products = await prisma.product.findMany({
+      where: {
+        AND: [
+          // Only show active products for non-admin users
+          ...(isAdmin ? [] : [{ isActive: true }]),
+          {
+            OR: [
+              // Match in product name (prioritize exact matches)
+              {
+                name: {
+                  contains: query,
+                  mode: 'insensitive'
+                }
+              },
+              // Match all search terms in name
+              {
+                AND: searchTerms.map(term => ({
+                  name: {
+                    contains: term,
+                    mode: 'insensitive'
+                  }
+                }))
+              },
+              // Match in description (lower priority)
+              {
+                description: {
+                  contains: query,
+                  mode: 'insensitive'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        discountedPrice: true,
+        category: {
+          select: {
+            name: true
+          }
+        },
+        images: {
+          select: {
+            imageUrl: true,
+            isMain: true
+          },
+          where: {
+            isMain: true
+          },
+          take: 1
+        }
+      },
+      orderBy: [
+        // Prioritize exact name matches
+        {
+          name: 'asc'
+        },
+        // Then by popularity/sales
+        {
+          totalSales: 'desc'
+        }
+      ],
+      take: productLimit
+    });
+
+    // Add products to results
+    products.forEach(product => {
+      results.push({
+        type: 'product',
+        id: product.id,
+        name: product.name,
+        description: product.description?.substring(0, 60) + 
+          (product.description && product.description.length > 60 ? '...' : ''),
+        category: product.category?.name,
+        imageUrl: product.images[0]?.imageUrl
+      });
+    });
+
+    // Search for categories (remaining slots, but maximum 2 categories)
+    const categoryLimit = Math.min(2, searchLimit - results.length);
+    
+    if (categoryLimit > 0) {
+      const categories = await prisma.category.findMany({
+        where: {
+          OR: [
+            {
+              name: {
+                contains: query,
+                mode: 'insensitive'
+              }
+            },
+            // Match any search term in category name
+            {
+              OR: searchTerms.map(term => ({
+                name: {
+                  contains: term,
+                  mode: 'insensitive'
+                }
+              }))
+            }
+          ]
+        },
+        select: {
+          id: true,
+          name: true,
+          parentId: true,
+          parent: {
+            select: {
+              name: true
+            }
+          },
+          // Count products in this category for relevance
+          _count: {
+            select: {
+              products: {
+                where: isAdmin ? {} : { isActive: true }
+              }
+            }
+          }
+        },
+        orderBy: [
+          {
+            name: 'asc'
+          }
+        ],
+        take: categoryLimit + 2 // Get a few extra to filter
+      });
+
+      // Add categories to results (only if they have products)
+      categories
+        .filter(category => category._count.products > 0)
+        .slice(0, categoryLimit) // Take only what we need
+        .forEach(category => {
+          const categoryName = category.parent 
+            ? `${category.parent.name} > ${category.name}`
+            : category.name;
+          
+          results.push({
+            type: 'category',
+            id: category.id,
+            name: categoryName,
+            description: `${category._count.products} products`
+          });
+        });
+    }
+
+    // Sort results to prioritize exact matches and products over categories
+    const sortedResults = results.sort((a, b) => {
+      // Exact name matches first
+      const aExactMatch = a.name.toLowerCase() === query.toLowerCase();
+      const bExactMatch = b.name.toLowerCase() === query.toLowerCase();
+      
+      if (aExactMatch && !bExactMatch) return -1;
+      if (!aExactMatch && bExactMatch) return 1;
+      
+      // Then prioritize products over categories
+      if (a.type === 'product' && b.type === 'category') return -1;
+      if (a.type === 'category' && b.type === 'product') return 1;
+      
+      // Finally sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+
+    res.status(200).json({
+      message: `Found ${sortedResults.length} suggestions for "${query}"`,
+      query: query,
+      suggestions: sortedResults.slice(0, searchLimit)
+    });
+    return;
+
+  } catch (error) {
+    console.error('Search autocomplete error:', error);
+    res.status(500).json({
+      message: 'Internal server error during search',
+      suggestions: []
+    });
+    return;
+  }
+};
+
+// Optional: Get popular search terms (can be used for trending suggestions)
+export const handlePopularSearches = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { limit } = req.query;
+    const searchLimit = limit ? parseInt(limit as string) : 5; // Default to 5 for popular
+    
+    if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 6) {
+      res.status(400).json({
+        message: 'Invalid limit parameter. Must be between 1 and 6.',
+        suggestions: []
+      });
+      return;
+    }
+
+    const isAdmin = req.user?.role === 'admin';
+
+    // Get most popular categories (by product count)
+    const popularCategories = await prisma.category.findMany({
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: {
+            products: {
+              where: isAdmin ? {} : { isActive: true }
+            }
+          }
+        }
+      },
+      orderBy: {
+        products: {
+          _count: 'desc'
+        }
+      },
+      take: Math.ceil(searchLimit / 2)
+    });
+
+    // Get bestselling products
+    const popularProducts = await prisma.product.findMany({
+      where: isAdmin ? {} : { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        totalSales: true
+      },
+      orderBy: {
+        totalSales: 'desc'
+      },
+      take: Math.floor(searchLimit / 2)
+    });
+
+    const suggestions: AutocompleteResult[] = [
+      // Add popular categories
+      ...popularCategories
+        .filter(cat => cat._count.products > 0)
+        .map(cat => ({
+          type: 'category' as const,
+          id: cat.id,
+          name: cat.name,
+          description: `${cat._count.products} products`
+        })),
+      // Add popular products
+      ...popularProducts.map(product => ({
+        type: 'product' as const,
+        id: product.id,
+        name: product.name,
+        description: `${product.totalSales || 0} sales`
+      }))
+    ];
+
+    res.status(200).json({
+      message: 'Popular search suggestions',
+      suggestions: suggestions.slice(0, searchLimit)
+    });
+    return;
+
+  } catch (error) {
+    console.error('Popular searches error:', error);
+    res.status(500).json({
+      message: 'Internal server error',
+      suggestions: []
+    });
+    return;
+  }
+};
 
 // view all the products
 export const handleGetFilteredProducts = async (
