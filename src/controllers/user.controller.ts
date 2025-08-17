@@ -3,10 +3,18 @@ import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "../types/customTypes";
 import prisma from "../config/prisma";
-import { findUserById } from "../services/user.service";
-import { redisApp } from "../config/redis";
+import {
+  findUserByEmail,
+  findUserById,
+  findUserByPhone,
+} from "../services/user.service";
+import { redisApp, redisOtp } from "../config/redis";
 import { createOrderAndReserveStock } from "../services/create.order.service";
 import { createCloverOrder } from "../services/upi.qr.payment.services";
+import { emailSchema, indianPhoneNumberSchema } from "../utils/inputValidation";
+import { generateOTP } from "../utils/otp";
+import { sendOtpSms } from "../services/otp.service";
+import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
 
 dotenv.config();
 
@@ -67,7 +75,7 @@ export const handleGettingUserProfile = async (
         name: true,
         email: true,
         phone: true,
-        // createdAt: true
+        createdAt: true,
       },
     });
     if (!user) {
@@ -94,7 +102,7 @@ export const handleUserName = async (
   try {
     const { name } = req.body;
 
-    if (!name || typeof name !== "string" || name.trim().length < 2) {
+    if (!name || typeof name !== "string" || name.trim().length < 3) {
       const error = new Error("Invalid name") as any;
       error.statusCode = 400;
       throw error;
@@ -110,12 +118,305 @@ export const handleUserName = async (
     const updatedUser = await prisma.user.update({
       where: { id: uid },
       data: { name },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+      },
     });
 
     res.status(200).json({
       message: "Name changed successfully",
       user: updatedUser,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// send otp to update email
+export const updateEmailVerify = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { email } = req.body;
+    const parsedEmail = emailSchema.safeParse(email);
+    if (!parsedEmail.success) {
+      throw {
+        statusCode: 400,
+        message: "Invalid email format",
+        errors: parsedEmail.error.flatten().fieldErrors,
+      };
+    }
+
+    if (await findUserByEmail(email)) {
+      const error = new Error("User Email Already Exist") as any;
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const uid = req.user?.uid;
+    const phone = req.userData?.phone;
+
+    if (!uid || !phone) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    await redisOtp.set(
+      `updateEmail:${phone}`,
+      JSON.stringify(email),
+      "EX",
+      360
+    );
+
+    const otp = generateOTP();
+    await redisOtp.set(`emailupdateotp:${phone}`, otp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, otp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    res.status(200).json({ message: "OTP sent to your phone no." });
+    return;
+  } catch (err) {
+    next(err);
+  }
+};
+
+// verify otp to update email
+export const updateEmailVeried = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { otp } = req.body;
+
+    const uid = req.user?.uid;
+    const phone = req.userData?.phone;
+
+    if (!phone) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const redisOtpKey = `emailupdateotp:${phone}`;
+    const storedOtp = await redisOtp.get(redisOtpKey);
+
+    if (!storedOtp) {
+      const error = new Error("OTP expired or not found") as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    if (storedOtp !== otp) {
+      const error = new Error("Invalid OTP") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const redisUserEmailKey = `updateEmail:${phone}`;
+    const userEmailRaw = await redisOtp.get(redisUserEmailKey);
+
+    if (!userEmailRaw) {
+      const error = new Error(
+        "Update email session expired. Please try again."
+      ) as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    const email = JSON.parse(userEmailRaw);
+    const updatedUser = await prisma.user.update({
+      where: { id: uid },
+      data: { email },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+      },
+    });
+    res
+      .status(200)
+      .json({ message: "Email Updated Successfully", user: updatedUser });
+    return;
+  } catch (err) {
+    next(err);
+  }
+};
+
+// send otp to update phone
+export const updatePhoneVerify = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone } = req.body;
+    const parsedPhone = indianPhoneNumberSchema.safeParse(phone);
+    if (!parsedPhone.success) {
+      throw {
+        statusCode: 400,
+        message: "Invalid phone format",
+        errors: parsedPhone.error.flatten().fieldErrors,
+      };
+    }
+
+    if (await findUserByPhone(phone)) {
+      const error = new Error("User Phone Already Exist") as any;
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const uid = req.user?.uid;
+    const previousPhone = req.userData?.phone;
+
+    if (!uid || !previousPhone) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    await redisOtp.set(
+      `updatephone:${previousPhone}`,
+      JSON.stringify(phone),
+      "EX",
+      360
+    );
+
+    const otp = generateOTP();
+    await redisOtp.set(`phoneupdateotp:${previousPhone}`, otp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, otp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    res.status(200).json({ message: "OTP sent to your new phone no." });
+    return;
+  } catch (err) {
+    next(err);
+  }
+};
+
+// verify otp to update email
+export const updatePhoneVeried = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { otp } = req.body;
+
+    const uid = req.user?.uid;
+    const phone = req.userData?.phone;
+
+    if (!phone) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const redisOtpKey = `phoneupdateotp:${phone}`;
+    const storedOtp = await redisOtp.get(redisOtpKey);
+
+    if (!storedOtp) {
+      const error = new Error("OTP expired or not found") as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    if (storedOtp !== otp) {
+      const error = new Error("Invalid OTP") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const redisUserPhoneKey = `updatephone:${phone}`;
+    const userPhoneRaw = await redisOtp.get(redisUserPhoneKey);
+
+    if (!userPhoneRaw) {
+      const error = new Error(
+        "Update phone session expired. Please try again."
+      ) as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    const newPhone = JSON.parse(userPhoneRaw);
+    const updatedUser = await prisma.user.update({
+      where: { id: uid },
+      data: { phone: newPhone },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+      },
+    });
+    res
+      .status(200)
+      .json({ message: "Phone Updated Successfully", user: updatedUser });
+    return;
+  } catch (err) {
+    next(err);
+  }
+};
+
+// change password
+export const changePassword = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const hashedOldPassword = req.userData?.password;
+
+    if (!hashedOldPassword) {
+      const error = new Error("Something went wrong") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    const result = await comparePassword(currentPassword, hashedOldPassword);
+
+    if (!result) {
+      const error = new Error("Your Current Password is Wrong") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const salt = await generateSalt(10);
+    const hashedNewPassword = await hashPassword(newPassword, salt);
+
+    const uid = req.user?.uid;
+    const updatedUser = await prisma.user.update({
+      where: { id: uid },
+      data: { password: hashedNewPassword, salt },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+      },
+    });
+    res
+      .status(200)
+      .json({ message: "Password Changed Successfully", user: updatedUser });
+    return;
   } catch (err) {
     next(err);
   }
@@ -569,13 +870,127 @@ export const upiQrPaymentController = async (
       order.id, // order_id
       verificationToken // remark1
     );
-
+    console.log(cloverOrder);
     // 4. Respond to client
     res.status(200).json({
       success: true,
       orderId: order.id,
       amount: pricingResult.finalTotal,
       paymentUrl: cloverOrder.payment_url,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getAllOrder = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const uid = req.user?.uid;
+
+    if (!uid) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const order = await prisma.order.findMany({
+      where: { userId: uid },
+      orderBy: { createdAt: "desc" }, // optional: newest first
+      select: {
+        id: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        payment: {
+          select: {
+            status: true,
+            method: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Order fetched successfully",
+      order,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getOrderDetails = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const uid = req.user?.uid;
+    const orderId = req.params.orderId;
+    if (!uid) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+    if (!orderId || typeof orderId !== "string") {
+      const error = new Error("Order id is necessary") as any;
+      error.statusCode = 400; // 400 is better for bad request
+      throw error;
+    }
+
+    const orderDetails = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+
+        customerName: true,
+        customerEmail: true,
+        customerPhone: true,
+
+        shippingFullName: true,
+        shippingPhone: true,
+        shippingLine1: true,
+        shippingLine2: true,
+        shippingCity: true,
+        shippingState: true,
+        shippingCountry: true,
+        shippingZipCode: true,
+
+        payment: {
+          select: {
+            status: true,
+            method: true,
+          },
+        },
+        orderItems: {
+          select: {
+            id: true,
+            orderId: true,
+            productId: true,
+            stockName: true,
+            quantity: true,
+            price: true,
+            productName: true,
+            productDescription: true,
+            productImageUrl: true,
+            productCategory: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Order Details fetched successfully",
+      orderDetails,
     });
   } catch (err) {
     next(err);

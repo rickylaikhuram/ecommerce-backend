@@ -4,6 +4,7 @@ import {
   userSignupInputValidationMiddleware,
   validateAddressBody,
   validateAddToCart,
+  validateChangePassword,
   validateCheckProducts,
   validateOtpInput,
   validatePhone,
@@ -22,6 +23,13 @@ import {
   getWishlistedProductIds,
   handleToggleWishlist,
   upiQrPaymentController,
+  updateEmailVeried,
+  updateEmailVerify,
+  updatePhoneVerify,
+  updatePhoneVeried,
+  getAllOrder,
+  getOrderDetails,
+  changePassword,
 } from "../controllers/user.controller";
 import {
   handleOtpSigninInitiate,
@@ -95,17 +103,72 @@ router.post(
   handleUserSigninWithOtp
 );
 
+//
+// USER DATA ROUTES
+//
+
 //get user data route
-router.get("/profile", identifySessionUser, handleGettingUserProfile);
+router.get(
+  "/profile",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  handleGettingUserProfile
+);
 
 //update user name route
-router.put(
-  "/change/username",
+router.patch(
+  "/profile/name",
   identifySessionUser,
+  isUser,
   queryExistingUserCheck,
   handleUserName
 );
 
+// get otp to update user email route
+router.patch(
+  "/profile/email",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  updateEmailVerify
+);
+
+// verify otp to update user email route
+router.patch(
+  "/profile/email/verify",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  updateEmailVeried
+);
+
+// get otp to update user phone route
+router.patch(
+  "/profile/phone",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  updatePhoneVerify
+);
+
+// verify otp to update user phone route
+router.patch(
+  "/profile/phone/verify",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  updatePhoneVeried
+);
+
+// change password route
+router.patch(
+  "/profile/change-password",
+  identifySessionUser,
+  queryExistingUserCheck,
+  validateChangePassword,
+  changePassword
+);
 
 //
 // USER WISHLIST ROUTES
@@ -234,6 +297,20 @@ router.post(
   validateAddressBody,
   validateCheckProducts,
   upiQrPaymentController
+);
+router.get(
+  "/orders",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  getAllOrder
+);
+router.get(
+  "/orders/:orderId",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  getOrderDetails
 );
 // log out user
 router.post("/logout", logoutUser);

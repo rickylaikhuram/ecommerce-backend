@@ -1,15 +1,14 @@
 // services/clovershopPayment.ts
 import axios from "axios";
-import qs from "qs";
 import dotenv from "dotenv";
 
 dotenv.config();
 const CLOVERSHOP_CREATE_ORDER_URL = process.env.CLOVERSHOP_CREATE_ORDER_URL!;
 const CLOVERSHOP_API_TOKEN = process.env.CLOVERSHOP_API_TOKEN!;
-const WEBHOOK_URL = process.env.WEBHOOK_URL!;
+const REDIRECT_URL = process.env.REDIRECT_URL!;
 
 interface CloverCreateOrderResponse {
-  status: boolean;
+  status: boolean | string; // API returns boolean true for success, string "false" for failure
   message: string;
   result?: {
     orderId: string;
@@ -21,30 +20,49 @@ export async function createCloverOrder(
   customerMobile: string,
   amount: number,
   orderId: string,
-  remark1?: string,
+  remark1?: string
 ) {
-  const payload = {
-    customer_mobile: customerMobile,
-    user_token: CLOVERSHOP_API_TOKEN,
-    amount: String(amount),
-    order_id: orderId,
-    redirect_url: WEBHOOK_URL, // can also be your site checkout success page
-    remark1: remark1 || "",
-  };
+  const redirectUrl = REDIRECT_URL + orderId;
+  const params = new URLSearchParams();
+  params.append("customer_mobile", customerMobile);
+  params.append("user_token", CLOVERSHOP_API_TOKEN);
+  params.append("amount", String(amount)); 
+  params.append("order_id", orderId);
+  params.append("redirect_url", redirectUrl);
+  params.append("remark1", remark1 || "");
 
-  const { data } = await axios.post<CloverCreateOrderResponse>(
-    CLOVERSHOP_CREATE_ORDER_URL,
-    qs.stringify(payload),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+  try {
+    const { data } = await axios.post<CloverCreateOrderResponse>(
+      CLOVERSHOP_CREATE_ORDER_URL,
+      params,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+
+    console.log("Clover API Response:", data);
+
+    // Check for both boolean false and string "false"
+    if (data.status === false || data.status === "false") {
+      throw new Error(data.message || "Failed to create Clover order");
     }
-  );
 
-  if (!data.status) {
-    throw new Error(data.message || "Failed to create Clover order");
+    if (!data.result) {
+      throw new Error("Invalid response: missing result data");
+    }
+
+    return data.result;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error("Clover API Error:", error.response?.data);
+      console.error("Status Code:", error.response?.status);
+      throw new Error(
+        error.response?.data?.message ||
+          `Clover API error: ${error.response?.status || "Unknown"}`
+      );
+    }
+    throw error;
   }
-
-  return data.result!;
 }

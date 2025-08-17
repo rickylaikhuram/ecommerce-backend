@@ -530,3 +530,40 @@ export const validateAddressBody = (
 
   next();
 };
+
+// change password validation
+export const validateChangePassword = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  console.log("i'm here")
+  const currentPasswordResult = passwordSchema.safeParse(req.body.currentPassword);
+  const newPasswordResult = passwordSchema.safeParse(req.body.newPassword);
+
+  if (!currentPasswordResult.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid password format",
+      errors: currentPasswordResult.error.flatten().fieldErrors,
+    };
+  }
+  if (!newPasswordResult.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid password format",
+      errors: newPasswordResult.error.flatten().fieldErrors,
+    };
+  }
+  if (currentPasswordResult.data === newPasswordResult.data) {
+    const error = new Error(
+      "New password cannot be the same as the current password"
+    ) as any;
+    error.statusCode = 400;
+    throw error;
+  }
+
+  req.body.newPassword = newPasswordResult.data;
+  req.body.currentPassword = currentPasswordResult.data;
+  next();
+};
