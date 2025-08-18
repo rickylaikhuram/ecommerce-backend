@@ -3,10 +3,14 @@ import { getUploadUrl, deleteS3File } from "../services/s3.service";
 
 // Generate presigned URLs for multiple images
 export const generateUploadUrl = async (req: Request, res: Response) => {
-  const { files } = req.body;
+  const { files, folderName } = req.body;
 
   if (!Array.isArray(files) || files.length === 0) {
     res.status(400).json({ message: "No files provided" });
+    return;
+  }
+  if (!folderName) {
+    res.status(400).json({ message: "Folder Name Needed" });
     return;
   }
 
@@ -18,17 +22,21 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
   try {
     const uploadDataArray = await Promise.all(
       files.map(async ({ sanitizedFileName, fileType }, index) => {
-        const uploadData = await getUploadUrl(sanitizedFileName, fileType);
+        const uploadData = await getUploadUrl(
+          sanitizedFileName,
+          fileType,
+          folderName
+        );
         return {
           ...uploadData,
           index, // Include index to maintain order
         };
       })
     );
-    console.log(uploadDataArray)
+    console.log(uploadDataArray);
 
     res.json({ signedUrls: uploadDataArray });
-    return
+    return;
   } catch (error) {
     console.error("Error generating presigned URLs:", error);
     res.status(500).json({ message: "Failed to generate upload URLs" });

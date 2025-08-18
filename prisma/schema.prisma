@@ -33,6 +33,10 @@ model Category {
   parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
   children Category[] @relation("CategoryToCategory")
 
+  // sub category image
+  imageUrl String?
+  altText  String?
+
   products Product[]
 }
 
@@ -187,6 +191,8 @@ model Payment {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
+// app core funtion model
+
 model PriceSetting {
   id                    String   @id @default(uuid())
   takeDeliveryFee       Boolean  @default(true) // Master switch for delivery fees
@@ -197,7 +203,13 @@ model PriceSetting {
   isActive              Boolean  @default(true)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
 
+model Banner {
+  id          String  @id @default(uuid())
+  imageUrl    String
+  altText     String?
+  redirectUrl String
 }
 
 enum OrderStatus {
