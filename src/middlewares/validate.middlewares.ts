@@ -235,8 +235,8 @@ export const adminPreSignedInputValidation = async (
   next: NextFunction
 ) => {
   try {
-    console.log(req.body.files);
     const parsed = fileUploadSchema.safeParse(req.body.files);
+    const folderName = stringSchema.safeParse(req.body.folderName);
     console.log(parsed);
 
     if (!parsed.success) {
@@ -246,11 +246,19 @@ export const adminPreSignedInputValidation = async (
         errors: parsed.error.flatten().fieldErrors,
       };
     }
+    if (!folderName.success) {
+      throw {
+        statusCode: 400,
+        message: "Need Folder Name",
+        errors: folderName.error.flatten().fieldErrors,
+      };
+    }
 
     req.body.files = parsed.data.map((file) => ({
       sanitizedFileName: sanitizeFileName(file.fileName),
       fileType: file.fileType,
     }));
+    req.body.folderName = folderName.data;
 
     next();
   } catch (error: any) {
@@ -537,8 +545,9 @@ export const validateChangePassword = (
   res: Response,
   next: NextFunction
 ) => {
-  console.log("i'm here")
-  const currentPasswordResult = passwordSchema.safeParse(req.body.currentPassword);
+  const currentPasswordResult = passwordSchema.safeParse(
+    req.body.currentPassword
+  );
   const newPasswordResult = passwordSchema.safeParse(req.body.newPassword);
 
   if (!currentPasswordResult.success) {

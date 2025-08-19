@@ -24,7 +24,7 @@ const router = Router();
 
 // admin add product images and get presigned url
 router.post(
-  "/add/product/images/presigned-urls",
+  "/add/images/presigned-urls",
   identifySessionUser,
   isAdmin,
   adminPreSignedInputValidation,
@@ -52,11 +52,11 @@ router.post(
 );
 
 // admin get all categories
-router.get("/get/categories", identifySessionUser, isAdmin, handleGetCategory);
+router.get("/categories", identifySessionUser, isAdmin, handleGetCategory);
 
 // admin get top categories
 router.get(
-  "/get/topcategories",
+  "/topcategories",
   identifySessionUser,
   isAdmin,
   handleGetTopLevelCategories
@@ -64,7 +64,7 @@ router.get(
 
 // admin get sub categories
 router.get(
-  "/get/lowcategories",
+  "/lowcategories",
   identifySessionUser,
   isAdmin,
   handleGetLowLevelCategories

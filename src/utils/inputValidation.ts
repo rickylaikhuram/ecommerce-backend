@@ -78,6 +78,8 @@ export const categorySchema = z.object({
     .max(50, "Category name must be less than 50 characters")
     .trim(),
   parentId: z.string().uuid().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+  altText: z.string().nullable().optional(),
 });
 
 // schema for add to cart

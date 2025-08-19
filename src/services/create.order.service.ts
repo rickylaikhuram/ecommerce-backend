@@ -38,20 +38,12 @@ export async function createOrderAndReserveStock(req: AuthRequest) {
 
   for (const item of productDatas) {
     const key = `stock:reservation:${item.productId}:${item.productVarient}`;
-    const existing = await redisApp.get(key);
-    let reservedQty = existing ? JSON.parse(existing).reservedQty : 0;
-    reservedQty += item.quantity;
 
-    await redisApp.set(
-      key,
-      JSON.stringify({
-        productId: item.productId,
-        stockName: item.productVarient,
-        reservedQty,
-      }),
-      "EX",
-      60 * 30
-    );
+    // Atomically increment reservedQty
+    const newReservedQty = await redisApp.incrby(key, item.quantity);
+
+    // Reset TTL (ensure key auto-expires if no payment happens)
+    await redisApp.expire(key, 60 * 30);
 
     reservedItems.push({
       productId: item.productId,

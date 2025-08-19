@@ -4,12 +4,23 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-//add category Controller
+//
+// CATEGORY
+//
+
+// add category Controller
 export const handleAddCategory = async (req: Request, res: Response) => {
-  const { name, parentId } = req.body;
+  const { name, parentId, imageUrl, altText } = req.body;
 
   // If parentId is provided, validate parent exists
   if (parentId) {
+    if (!imageUrl?.trim() || !altText?.trim()) {
+      throw {
+        statusCode: 400,
+        message: "Subcategories must include an image and alt text.",
+      };
+    }
+
     const parentCategory = await prisma.category.findUnique({
       where: { id: parentId },
     });
@@ -43,7 +54,7 @@ export const handleAddCategory = async (req: Request, res: Response) => {
     });
 
     if (existingCategory) {
-      throw { statusCode: 403, message: "Category already exists" };
+      throw { statusCode: 409, message: "Category already exists" };
     }
   }
 
@@ -52,22 +63,27 @@ export const handleAddCategory = async (req: Request, res: Response) => {
     data: {
       name: name.trim(),
       parentId: parentId || null,
+      imageUrl: imageUrl || null,
+      altText: altText || null,
     },
   });
 
   res.status(201).json({
     success: true,
     message: parentId
-      ? "Subcategory created successfully"
-      : "Category created successfully",
+      ? "Subcategory created successfully."
+      : "Category created successfully.",
     category: {
       id: createCategory.id,
       name: createCategory.name,
       parentId: createCategory.parentId,
+      imageUrl: createCategory.imageUrl,
+      altText: createCategory.altText,
     },
   });
 };
 
+// get category Controller
 export const handleGetCategory = async (req: Request, res: Response) => {
   // get all category
   const allCategory = await prisma.category.findMany({});
@@ -78,6 +94,7 @@ export const handleGetCategory = async (req: Request, res: Response) => {
   });
 };
 
+// get top level category Controller
 export const handleGetTopLevelCategories = async (
   req: Request,
   res: Response
@@ -97,6 +114,7 @@ export const handleGetTopLevelCategories = async (
   });
 };
 
+// get low level category Controller
 export const handleGetLowLevelCategories = async (
   req: Request,
   res: Response
@@ -126,6 +144,11 @@ export const handleGetLowLevelCategories = async (
     };
   }
 };
+
+//
+// PRODUCT
+//
+
 //add product controller
 export const handleAddProduct = async (req: Request, res: Response) => {
   const {
@@ -346,3 +369,8 @@ export const handleDeleteStock = async (req: Request, res: Response) => {
     result,
   });
 };
+
+//
+// BANNER
+//
+

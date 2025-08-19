@@ -9,10 +9,6 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
     res.status(400).json({ message: "No files provided" });
     return;
   }
-  if (!folderName) {
-    res.status(400).json({ message: "Folder Name Needed" });
-    return;
-  }
 
   if (files.length > 10) {
     res.status(400).json({ message: "Maximum 10 images allowed" });
@@ -33,7 +29,7 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
         };
       })
     );
-    console.log(uploadDataArray);
+
 
     res.json({ signedUrls: uploadDataArray });
     return;
