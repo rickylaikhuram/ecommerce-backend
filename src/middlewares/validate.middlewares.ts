@@ -19,6 +19,7 @@ import {
   cartItemIdSchema,
   createAddressSchema,
   editImagesSchema,
+  editSubCategorySchema,
 } from "../utils/inputValidation";
 import { sanitizeFileName } from "../utils/sanatizeString";
 
@@ -279,6 +280,35 @@ export const adminCategoryInputValidation = async (
 ) => {
   try {
     const result = categorySchema.safeParse(req.body);
+
+    if (!result.success) {
+      const errors = result.error.format();
+      throw {
+        statusCode: 411,
+        message: "Validation failed",
+        errors: errors,
+      };
+    }
+
+    req.body = result.data;
+    next();
+  } catch (error: any) {
+    res.status(error?.statusCode || 500).json({
+      success: false,
+      message: error?.message || "Internal server error",
+      errors: error?.errors || error,
+    });
+  }
+};
+
+// admin add category input validation
+export const adminEditSubCategoryInputValidation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = editSubCategorySchema.safeParse(req.body);
 
     if (!result.success) {
       const errors = result.error.format();

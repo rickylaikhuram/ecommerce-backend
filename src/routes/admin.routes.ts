@@ -7,22 +7,23 @@ import {
   validateProductStock,
   validateDeleteProductStock,
   validateEditProductImages,
+  adminEditSubCategoryInputValidation,
 } from "../middlewares/validate.middlewares";
 import { isAdmin, identifySessionUser } from "../middlewares/auth.middlewares";
 import {
   handleAddCategory,
   handleAddProduct,
-  handleAddStock,
-  handleDeleteStock,
+  handleEditCategory,
   handleEditProduct,
+  handleEditSubCategory,
   handleGetCategory,
   handleGetLowLevelCategories,
   handleGetTopLevelCategories,
-  handleUpdateStock,
 } from "../controllers/adminProduct.controller";
 import { generateUploadUrl } from "../controllers/s3.controller";
 
 const router = Router();
+
 //
 // IMAGES
 //
@@ -74,6 +75,23 @@ router.post(
   handleAddCategory
 );
 
+// admin edit category route
+router.put(
+  "/update/category/:id",
+  identifySessionUser,
+  isAdmin,
+  handleEditCategory
+);
+
+// admin edit subcategory route
+router.put(
+  "/update/subcategory/:id",
+  identifySessionUser,
+  isAdmin,
+  adminEditSubCategoryInputValidation,
+  handleEditSubCategory
+);
+
 // admin get all categories
 router.get("/categories", identifySessionUser, isAdmin, handleGetCategory);
 
@@ -93,30 +111,4 @@ router.get(
   handleGetLowLevelCategories
 );
 
-// admin add stock
-router.post(
-  "/stock",
-  identifySessionUser,
-  isAdmin,
-  validateProductStock,
-  handleAddStock
-);
-
-// admin update stock
-router.put(
-  "/stock",
-  identifySessionUser,
-  isAdmin,
-  validateProductStock,
-  handleUpdateStock
-);
-
-// admin delete stock
-router.delete(
-  "/stock",
-  identifySessionUser,
-  isAdmin,
-  validateDeleteProductStock,
-  handleDeleteStock
-);
 export default router;

@@ -84,6 +84,174 @@ export const handleAddCategory = async (req: Request, res: Response) => {
   });
 };
 
+// edit category Controller
+export const handleEditCategory = async (req: Request, res: Response) => {
+  const { name: categoryName } = req.body;
+  const id = req.params.id;
+
+  if (!categoryName) {
+    throw { status: 403, message: "Need Category Name to edit" };
+  }
+  if (!id) {
+    throw { status: 403, message: "Need Category ID to edit" };
+  }
+
+  console.log("Edit category request:", { id, categoryName });
+
+  const categoryExist = await prisma.category.findUnique({
+    where: { id },
+  });
+
+  if (!categoryExist) {
+    throw { status: 403, message: "Category doesn't exist" };
+  }
+
+  if (categoryExist.parentId) {
+    throw {
+      status: 403,
+      message: "A Child category is not allowed in this route",
+    };
+  }
+
+  const updatedCategory = await prisma.category.update({
+    where: { id },
+    data: {
+      name: categoryName,
+    },
+  });
+
+  const updatedCategoryWithChildren = await prisma.category.findUnique({
+    where: { id: updatedCategory.id },
+  });
+
+  res.status(200).json({
+    message: "Category updated successfully",
+    category: {
+      id: updatedCategoryWithChildren!.id,
+      name: updatedCategoryWithChildren!.name,
+    },
+  });
+};
+
+// edit subcategory Controller
+export const handleEditSubCategory = async (req: Request, res: Response) => {
+  const {
+    name,
+    parentId,
+    altText,
+    deleteImage, // Boolean - true if user wants to delete existing image
+    updatedImages, // Array with imageKey and altText (can be empty)
+  } = req.body;
+
+  const id = req.params.id;
+  if (!id) {
+    throw { status: 403, message: "Need Category ID to edit" };
+  }
+
+  console.log("Edit category request:", {
+    id,
+    name,
+    parentId,
+    altText,
+    deleteImage,
+    updatedImages,
+  });
+
+  // Check if category exists
+  const categoryExist = await prisma.category.findUnique({
+    where: { id },
+  });
+
+  if (!categoryExist) {
+    throw { status: 403, message: "Category doesn't exist" };
+  }
+
+  // If parentId is provided, check if parent category exists
+  if (parentId) {
+    const parentCategoryExist = await prisma.category.findUnique({
+      where: { id: parentId },
+    });
+
+    if (!parentCategoryExist) {
+      throw { status: 403, message: "Parent category doesn't exist" };
+    }
+  }
+
+  // Transaction to update category and handle image changes
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Handle image deletion if requested
+    if (deleteImage && categoryExist.imageUrl) {
+      // Delete from S3 in background
+      deleteS3File(categoryExist.imageUrl).catch((error) => {
+        console.error(
+          `Failed to delete S3 file: ${categoryExist.imageUrl}`,
+          error
+        );
+      });
+    }
+
+    // 2. Prepare category update data
+    const updateData: any = {
+      name,
+      altText: altText || name,
+    };
+
+    // Handle parentId (can be null for top-level categories)
+    if (parentId !== undefined) {
+      updateData.parentId = parentId || null;
+    }
+
+    // 3. Handle image update/deletion
+    if (deleteImage) {
+      // If deleting image, set to null
+      updateData.imageUrl = null;
+      updateData.altText = name; // Reset altText to category name
+    }
+
+    // 4. Handle updated images (new image or keeping existing)
+    if (updatedImages?.length > 0) {
+      const imageToUpdate = updatedImages[0];
+      if (imageToUpdate?.imageKey) {
+        updateData.imageUrl = imageToUpdate.imageKey;
+        updateData.altText = imageToUpdate.altText || name;
+      }
+    }
+
+    // 5. Update the category with all changes
+    const updatedCategory = await tx.category.update({
+      where: { id: categoryExist.id },
+      data: updateData,
+    });
+
+    return updatedCategory;
+  });
+
+  // Get updated category with parent info for response
+  const updatedCategoryWithParent = await prisma.category.findUnique({
+    where: { id: result.id },
+    include: {
+      parent: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Category updated successfully",
+    category: {
+      id: updatedCategoryWithParent!.id,
+      name: updatedCategoryWithParent!.name,
+      altText: updatedCategoryWithParent!.altText,
+      imageUrl: updatedCategoryWithParent!.imageUrl,
+      parentId: updatedCategoryWithParent!.parentId,
+      parentName: updatedCategoryWithParent!.parent?.name || null,
+    },
+  });
+};
+
 // get category Controller
 export const handleGetCategory = async (req: Request, res: Response) => {
   // get all category
@@ -387,154 +555,6 @@ export const handleEditProduct = async (req: Request, res: Response) => {
       categoryName: categoryExist.name,
       isActive: result.isActive,
     },
-  });
-};
-
-//update product stock controller
-export const handleUpdateStock = async (req: Request, res: Response) => {
-  const { productId, productStocks } = req.body;
-
-  if (!productId) {
-    throw { status: 403, message: "Product Id is required" };
-  }
-
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-  });
-
-  if (!product) {
-    throw { status: 404, message: "Product not found" };
-  }
-
-  const result = [];
-
-  for (const { stockName, stock } of productStocks) {
-    const existingStock = await prisma.productStock.findFirst({
-      where: { productId, stockName },
-    });
-
-    if (!existingStock) {
-      result.push({
-        stockName,
-        status: "not found",
-      });
-      continue;
-    }
-
-    const updated = await prisma.productStock.update({
-      where: { id: existingStock.id },
-      data: { stock },
-    });
-
-    result.push({
-      stockName,
-      status: "updated",
-      newStock: updated.stock,
-    });
-  }
-
-  res.status(200).json({
-    message: "Stock update complete",
-    result,
-  });
-};
-
-//add product stock controller
-export const handleAddStock = async (req: Request, res: Response) => {
-  const { productId, productStocks } = req.body;
-
-  if (!productId) {
-    throw { status: 403, message: "Product Id is required" };
-  }
-
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-  });
-
-  if (!product) {
-    throw { status: 404, message: "Product not found" };
-  }
-
-  const result = [];
-
-  for (const { stockName, stock } of productStocks) {
-    const exists = await prisma.productStock.findFirst({
-      where: { productId, stockName },
-    });
-
-    if (exists) {
-      result.push({
-        stockName,
-        status: "already exists",
-      });
-      continue;
-    }
-
-    const created = await prisma.productStock.create({
-      data: {
-        productId,
-        stockName,
-        stock,
-      },
-    });
-
-    result.push({
-      stockName,
-      status: "created",
-      stock: created.stock,
-    });
-  }
-
-  res.status(201).json({
-    message: "Stock creation complete",
-    result,
-  });
-};
-
-//delete product stock controller
-export const handleDeleteStock = async (req: Request, res: Response) => {
-  const { productId, productStocks } = req.body;
-
-  if (!productId) {
-    throw { status: 403, message: "Product Id is required" };
-  }
-
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-  });
-
-  if (!product) {
-    throw { status: 404, message: "Product not found" };
-  }
-
-  const result = [];
-
-  for (const { stockName } of productStocks) {
-    const existing = await prisma.productStock.findFirst({
-      where: { productId, stockName },
-    });
-
-    if (!existing) {
-      result.push({
-        stockName,
-        status: "not found",
-      });
-      continue;
-    }
-
-    await prisma.productStock.delete({
-      where: { id: existing.id },
-    });
-
-    result.push({
-      stockName,
-      status: "deleted",
-    });
-  }
-
-  res.status(200).json({
-    message: "Stock deletion complete",
-    result,
   });
 };
 

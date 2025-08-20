@@ -99,13 +99,14 @@ export const editImagesSchema = z.object({
   newImages: newImageSchema,
 });
 
-
-export const stockSchema = z.array(
-  z.object({
-    stockName: z.string().min(1, "Stock name is required"),
-    stock: z.number().min(1, "Stock must be at least 1"),
-  })
-).min(1, "At least one stock item is required");
+export const stockSchema = z
+  .array(
+    z.object({
+      stockName: z.string().min(1, "Stock name is required"),
+      stock: z.number().min(1, "Stock must be at least 1"),
+    })
+  )
+  .min(1, "At least one stock item is required");
 
 export const deleteStockSchema = z.array(
   z.object({
@@ -125,6 +126,28 @@ export const categorySchema = z.object({
   parentId: z.string().uuid().nullable().optional(),
   imageUrl: z.string().nullable().optional(),
   altText: z.string().nullable().optional(),
+});
+
+
+export const editSubCategorySchema = z.object({
+  name: z.string().min(1, "Name is required"),
+
+  // parentId must be UUID
+  parentId: z.string().uuid({ message: "parentId must be a valid UUID" }),
+
+  // must be present and non-empty
+  altText: z.string().min(1, "altText is required"),
+
+  // must always be provided (true or false)
+  deleteImage: z.boolean(),
+
+  // always required (can still be empty array)
+  updatedImages: z.array(
+    z.object({
+      imageKey: z.string().min(1, "imageKey is required"),
+      altText: z.string().min(1, "altText is required"),
+    })
+  ),
 });
 
 // schema for add to cart
