@@ -18,6 +18,7 @@ import {
   updateQuantitySchema,
   cartItemIdSchema,
   createAddressSchema,
+  editImagesSchema,
 } from "../utils/inputValidation";
 import { sanitizeFileName } from "../utils/sanatizeString";
 
@@ -389,7 +390,6 @@ export const validateProductImages = (
       message: "Invalid images format",
       errors: result.error.flatten().fieldErrors,
     };
-    return;
   }
 
   req.body.images = result.data;
@@ -433,6 +433,33 @@ export const validateDeleteProductStock = (
   }
 
   req.body.productStocks = result.data;
+  next();
+};
+
+// admin validate delete product image stock
+export const validateEditProductImages = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = editImagesSchema.safeParse(req.body);
+
+  if (!result.success) {
+     res.status(400).json({
+      statusCode: 400,
+      message: "Invalid images format",
+      errors: result.error.flatten().fieldErrors,
+    });
+    return
+  }
+
+  req.body = {
+    ...req.body, 
+    deletedImages: result.data.deletedImages,
+    updatedImages: result.data.updatedImages,
+    newImages: result.data.newImages,
+  };
+ 
   next();
 };
 

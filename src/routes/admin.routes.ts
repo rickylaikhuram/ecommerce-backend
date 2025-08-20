@@ -6,6 +6,7 @@ import {
   validateProductImages,
   validateProductStock,
   validateDeleteProductStock,
+  validateEditProductImages,
 } from "../middlewares/validate.middlewares";
 import { isAdmin, identifySessionUser } from "../middlewares/auth.middlewares";
 import {
@@ -13,6 +14,7 @@ import {
   handleAddProduct,
   handleAddStock,
   handleDeleteStock,
+  handleEditProduct,
   handleGetCategory,
   handleGetLowLevelCategories,
   handleGetTopLevelCategories,
@@ -21,6 +23,9 @@ import {
 import { generateUploadUrl } from "../controllers/s3.controller";
 
 const router = Router();
+//
+// IMAGES
+//
 
 // admin add product images and get presigned url
 router.post(
@@ -30,6 +35,10 @@ router.post(
   adminPreSignedInputValidation,
   generateUploadUrl
 );
+
+//
+// PRODUCTS
+//
 
 // admin add product route
 router.post(
@@ -41,6 +50,20 @@ router.post(
   validateProductStock,
   handleAddProduct
 );
+
+router.put(
+  "/edit/product/:id",
+  identifySessionUser,
+  isAdmin,
+  validateProductCore,
+  validateEditProductImages,
+  validateProductStock,
+  handleEditProduct
+);
+
+//
+// CATEGORY
+//
 
 // admin add category or subcategory route
 router.post(

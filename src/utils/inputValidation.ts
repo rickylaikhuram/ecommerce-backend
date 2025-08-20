@@ -56,12 +56,57 @@ export const imageSchema = z.array(
     isMain: z.boolean().default(false),
   })
 );
+
+// Schema for deleted images
+const deleteImageSchema = z
+  .array(
+    z.object({
+      id: z.string().min(1), // Changed from UUID to allow any string ID
+      imageUrl: z.string().min(1), // Changed from imageKey to imageUrl to match frontend
+    })
+  )
+  .default([]);
+
+// Schema for updated existing images
+const updatedImageSchema = z
+  .array(
+    z.object({
+      id: z.string().min(1), // Changed from UUID to allow any string ID
+      imageUrl: z.string().min(1), // Changed from imageKey to imageUrl to match frontend
+      altText: z.string().min(1), // Made required since frontend always sends it
+      position: z.number().int().min(0), // Made required and added int validation
+      isMain: z.boolean(), // Made required since frontend always sends it
+    })
+  )
+  .default([]);
+
+// Schema for new images
+const newImageSchema = z
+  .array(
+    z.object({
+      imageKey: z.string().min(1), // This is correct - new images use imageKey
+      altText: z.string().min(1), // Made required since frontend always sends it
+      position: z.number().int().min(0), // Made required and added int validation
+      isMain: z.boolean(), // Made required since frontend always sends it
+    })
+  )
+  .default([]);
+
+// Main schema
+export const editImagesSchema = z.object({
+  deletedImages: deleteImageSchema,
+  updatedImages: updatedImageSchema,
+  newImages: newImageSchema,
+});
+
+
 export const stockSchema = z.array(
   z.object({
-    stockName: z.string().min(1),
-    stock: z.number(),
+    stockName: z.string().min(1, "Stock name is required"),
+    stock: z.number().min(1, "Stock must be at least 1"),
   })
-);
+).min(1, "At least one stock item is required");
+
 export const deleteStockSchema = z.array(
   z.object({
     stockName: z.string().min(1),
