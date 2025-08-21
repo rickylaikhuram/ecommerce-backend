@@ -96,8 +96,6 @@ export const handleEditCategory = async (req: Request, res: Response) => {
     throw { status: 403, message: "Need Category ID to edit" };
   }
 
-  console.log("Edit category request:", { id, categoryName });
-
   const categoryExist = await prisma.category.findUnique({
     where: { id },
   });
@@ -147,15 +145,6 @@ export const handleEditSubCategory = async (req: Request, res: Response) => {
   if (!id) {
     throw { status: 403, message: "Need Category ID to edit" };
   }
-
-  console.log("Edit category request:", {
-    id,
-    name,
-    parentId,
-    altText,
-    deleteImage,
-    updatedImages,
-  });
 
   // Check if category exists
   const categoryExist = await prisma.category.findUnique({
@@ -410,19 +399,6 @@ export const handleEditProduct = async (req: Request, res: Response) => {
   if (!id) {
     throw { status: 403, message: "Need Product ID to edit" };
   }
-  console.log(
-    category,
-    name,
-    description,
-    originalPrice,
-    discountedPrice,
-    productStocks,
-    isActive,
-    deletedImages,
-    updatedImages,
-    newImages,
-    id
-  );
   // Check Product exists
   const productExist = await prisma.product.findUnique({
     where: { id },

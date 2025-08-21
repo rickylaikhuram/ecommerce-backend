@@ -5,7 +5,6 @@ import {
   adminPreSignedInputValidation,
   validateProductImages,
   validateProductStock,
-  validateDeleteProductStock,
   validateEditProductImages,
   adminEditSubCategoryInputValidation,
 } from "../middlewares/validate.middlewares";

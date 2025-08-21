@@ -500,10 +500,6 @@ export const handleGetFilteredProducts = async (
       distinct: ["stockName"],
       take: 20, // Limit to avoid too much output
     });
-    console.log(
-      "Available sizes in database:",
-      availableSizes.map((s) => s.stockName)
-    );
 
     let sizeList: string[] = [];
 
@@ -531,9 +527,6 @@ export const handleGetFilteredProducts = async (
     }
     // Ignore other types (QueryString.ParsedQs, etc.)
 
-    console.log("Sizes filter - Raw sizes:", sizes);
-    console.log("Sizes filter - Final size list:", sizeList);
-
     if (sizeList.length > 0) {
       // Use exact matching with case insensitive mode
       const sizeCondition = {
@@ -546,10 +539,6 @@ export const handleGetFilteredProducts = async (
           },
         },
       };
-      console.log(
-        "Sizes filter condition:",
-        JSON.stringify(sizeCondition, null, 2)
-      );
       whereConditions.push(sizeCondition);
     }
   }
@@ -589,8 +578,6 @@ export const handleGetFilteredProducts = async (
   // Combine all where conditions
   const whereClause =
     whereConditions.length > 0 ? { AND: whereConditions } : {};
-
-  console.log("Final where clause:", JSON.stringify(whereClause, null, 2));
 
   // Build orderBy clause
   let orderByClause: any = {};

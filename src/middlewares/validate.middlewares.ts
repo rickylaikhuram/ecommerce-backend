@@ -10,7 +10,6 @@ import {
   fileUploadSchema,
   imageSchema,
   stockSchema,
-  deleteStockSchema,
   isPublishedSchema,
   categorySchema,
   addToCartSchema,
@@ -239,7 +238,6 @@ export const adminPreSignedInputValidation = async (
   try {
     const parsed = fileUploadSchema.safeParse(req.body.files);
     const folderName = stringSchema.safeParse(req.body.folderName);
-    console.log(parsed);
 
     if (!parsed.success) {
       throw {
@@ -426,46 +424,6 @@ export const validateProductImages = (
   next();
 };
 
-// admin validate product stock
-export const validateProductStock = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  const result = stockSchema.safeParse(req.body.productStocks);
-
-  if (!result.success) {
-    throw {
-      statusCode: 400,
-      message: "Invalid stocks format",
-      errors: result.error.flatten().fieldErrors,
-    };
-  }
-
-  req.body.productStocks = result.data;
-  next();
-};
-
-// admin validate product stock
-export const validateDeleteProductStock = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  const result = deleteStockSchema.safeParse(req.body.productStocks);
-
-  if (!result.success) {
-    throw {
-      statusCode: 400,
-      message: "Invalid delete stocks format",
-      errors: result.error.flatten().fieldErrors,
-    };
-  }
-
-  req.body.productStocks = result.data;
-  next();
-};
-
 // admin validate delete product image stock
 export const validateEditProductImages = (
   req: Request,
@@ -490,6 +448,26 @@ export const validateEditProductImages = (
     newImages: result.data.newImages,
   };
  
+  next();
+};
+
+// admin validate product stock
+export const validateProductStock = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = stockSchema.safeParse(req.body.productStocks);
+
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid stocks format",
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  req.body.productStocks = result.data;
   next();
 };
 

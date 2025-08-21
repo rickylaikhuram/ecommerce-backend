@@ -9,17 +9,13 @@ export const sendOtpSms = async (phone: string, otp: string): Promise<boolean> =
     const response = await axios.get(URL);
     const data = response.data;
 
-    console.log("📨 SMS API Response:", data);
 
     if (data.status === "SUCCESS") {
-      console.log("✅ OTP sent to", phone);
       return true;
     } else {
-      console.error("❌ OTP sending failed:", data.message || "Unknown error");
       return false;
     }
   } catch (error) {
-    console.error("❌ Request failed:", error);
     return false;
   }
 };

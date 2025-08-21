@@ -42,8 +42,6 @@ export async function createCloverOrder(
       }
     );
 
-    console.log("Clover API Response:", data);
-
     // Check for both boolean false and string "false"
     if (data.status === false || data.status === "false") {
       throw new Error(data.message || "Failed to create Clover order");

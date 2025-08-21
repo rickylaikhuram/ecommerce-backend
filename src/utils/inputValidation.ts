@@ -108,11 +108,6 @@ export const stockSchema = z
   )
   .min(1, "At least one stock item is required");
 
-export const deleteStockSchema = z.array(
-  z.object({
-    stockName: z.string().min(1),
-  })
-);
 
 export const isPublishedSchema = z.coerce.boolean().default(true);
 

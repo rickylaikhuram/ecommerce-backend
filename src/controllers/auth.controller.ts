@@ -91,7 +91,6 @@ export const handleResendSignupOtp = async (
       throw error;
     }
 
-    console.log(`✅ OTP resent to ${phone}: ${newOtp}`);
     res.status(200).json({ message: "OTP resent successfully" });
   } catch (err) {
     next(err);

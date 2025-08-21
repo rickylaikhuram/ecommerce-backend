@@ -688,7 +688,6 @@ export const putEditAddress = async (
       label = null,
       isDefault = false,
     } = req.body.address;
-    console.log(req.body.address);
     const address = await prisma.address.findUnique({
       where: { id: addressId },
     });
@@ -870,7 +869,6 @@ export const upiQrPaymentController = async (
       order.id, // order_id
       verificationToken // remark1
     );
-    console.log(cloverOrder);
     // 4. Respond to client
     res.status(200).json({
       success: true,
