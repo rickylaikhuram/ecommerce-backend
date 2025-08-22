@@ -16,10 +16,12 @@ import {
   handleEditProduct,
   handleEditSubCategory,
   handleGetAdmin,
+  handleGetAllOrders,
   handleGetAllUser,
   handleGetCategory,
   handleGetCustomer,
   handleGetLowLevelCategories,
+  handleGetOrderDetails,
   handleGetTopLevelCategories,
   handleGetUser,
   handleGetUserAddress,
@@ -184,6 +186,34 @@ router.get(
   identifySessionUser,
   isAdmin,
   handleGetUserCart
+);
+
+//
+// ORDER
+//
+
+// get all orders
+router.get(
+  "/orders",
+  identifySessionUser,
+  isAdmin,
+  handleGetAllOrders
+);
+
+// get specific order details
+router.get(
+  "/orders/:orderId",
+  identifySessionUser,
+  isAdmin,
+  handleGetOrderDetails
+);
+
+// update order status
+router.put(
+  "/orders/:orderId",
+  identifySessionUser,
+  isAdmin,
+  handleGetOrderDetails
 );
 
 export default router;
