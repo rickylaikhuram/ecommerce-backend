@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import dotenv from "dotenv";
 import { deleteS3File } from "../services/s3.service";
-import { boolean } from "zod";
+import { OrderStatus } from "@prisma/client";
 
 dotenv.config();
 
@@ -821,5 +821,115 @@ export const handleGetUserCart = async (req: Request, res: Response) => {
   res.status(200).json({
     message: "Fetched user cart successfully",
     cart: userCartDetails?.cartItems || [],
+  });
+};
+
+//
+// ORDER
+//
+
+// get All Orders Controller
+export const handleGetAllOrders = async (req: Request, res: Response) => {
+  const allOrders = await prisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      userId: true,
+      totalAmount: true,
+      status: true,
+      createdAt: true,
+      _count: {
+        select: { orderItems: true }, // count order items
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched all orders successfully",
+    orders: allOrders,
+  });
+};
+
+// get Orders Details Controller
+export const handleGetOrderDetails = async (req: Request, res: Response) => {
+  const orderId = req.params.orderId;
+  if (!orderId || typeof orderId !== "string") {
+    throw { status: 403, message: "Need Order ID to get details" };
+  }
+
+  const orderDetails = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      orderNumber: true,
+      totalAmount: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: { orderItems: true }, // count order items
+      },
+      orderItems: {
+        select: {
+          id: true,
+          orderId: true,
+          productId: true,
+          stockName: true,
+          quantity: true,
+          price: true,
+          subTotal: true,
+          productName: true,
+          product: {
+            select: {
+              images: {
+                where: {
+                  isMain: true,
+                },
+                select: {
+                  imageUrl: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      payment: {
+        select: {
+          id: true,
+          method: true,
+          transactionId: true,
+          status: true,
+          paidAt: true,
+          updatedAt: true,
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched user order details successfully",
+    order: orderDetails || [],
+  });
+};
+
+// update Orders status Controller
+export const handleUpdateOrderStatus = async (req: Request, res: Response) => {
+  const orderId = req.params.orderId;
+  if (!orderId || typeof orderId !== "string") {
+    throw { status: 403, message: "Need Order ID to get details" };
+  }
+
+  const status: OrderStatus = req.body.status;
+
+  const orderDetails = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status,
+    },
+  });
+
+  res.status(201).json({
+    message: "updated order status successfully",
+    order: orderDetails || [],
   });
 };

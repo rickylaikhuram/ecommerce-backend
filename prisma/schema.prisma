@@ -136,7 +136,7 @@ model Address {
 
 model Order {
   id          String      @id @default(uuid())
-  userId      String?
+  userId      String
   orderNumber String      @unique
   totalAmount Decimal
   status      OrderStatus @default(PENDING)
@@ -159,7 +159,7 @@ model Order {
   shippingZipCode  String
 
   // Relations
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id])
   orderItems OrderItem[]
   payment    Payment?
 
@@ -189,13 +189,13 @@ model OrderItem {
 }
 
 model Payment {
-  id            String         @id @default(uuid())
-  orderId       String         @unique
+  id            String        @id @default(uuid())
+  orderId       String        @unique
   method        PaymentMethod
   transactionId String?
   status        PaymentStatus
   paidAt        DateTime?
-  updatedAt     DateTime       @updatedAt
+  updatedAt     DateTime      @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
