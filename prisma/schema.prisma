@@ -137,9 +137,11 @@ model Address {
 model Order {
   id          String      @id @default(uuid())
   userId      String?
+  orderNumber String      @unique
   totalAmount Decimal
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   // Customer info snapshot
   customerName  String
@@ -148,7 +150,7 @@ model Order {
 
   // Shipping address snapshot
   shippingFullName String
-  shippingPhone    String // Shipping contact phone
+  shippingPhone    String
   shippingLine1    String
   shippingLine2    String?
   shippingCity     String
@@ -160,33 +162,40 @@ model Order {
   user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
   payment    Payment?
+
+  @@index([userId])
+  @@index([status])
 }
 
 model OrderItem {
   id        String  @id @default(uuid())
   orderId   String
-  productId String? // Nullable in case product is deleted
+  productId String?
   stockName String
   quantity  Int
-  price     Decimal // Price at time of purchase
+  price     Decimal
+  subTotal  Decimal // price × quantity at order time
 
-  // Product info snapshot at time of order
-  productName        String // Store product name
-  productDescription String? // Store product description
-  productImageUrl    String? // Store main product image
-  productCategory    String? // Store category name
+  // Product snapshot
+  productName        String
+  productDescription String?
+  productImageUrl    String?
+  productCategory    String?
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
 }
 
 model Payment {
-  id            String    @id @default(uuid())
-  orderId       String    @unique
-  method        String
+  id            String         @id @default(uuid())
+  orderId       String         @unique
+  method        PaymentMethod
   transactionId String?
-  status        String
+  status        PaymentStatus
   paidAt        DateTime?
+  updatedAt     DateTime       @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
@@ -218,4 +227,20 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  UNPLACED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  UPI
+  CARD
+  NETBANKING
+  PAYPAL
 }

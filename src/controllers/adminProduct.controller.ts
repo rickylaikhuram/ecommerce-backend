@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import dotenv from "dotenv";
 import { deleteS3File } from "../services/s3.service";
+import { boolean } from "zod";
 
 dotenv.config();
 
@@ -535,5 +536,290 @@ export const handleEditProduct = async (req: Request, res: Response) => {
 };
 
 //
-// BANNER
+// USER
 //
+
+// get Admin Controller
+export const handleGetAdmin = async (req: Request, res: Response) => {
+  const allAdmin = await prisma.user.findMany({
+    where: { isAdmin: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      createdAt: true,
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched admins successfully",
+    admins: allAdmin,
+  });
+};
+
+// get All Users Controller
+export const handleGetAllUser = async (req: Request, res: Response) => {
+  const allUser = await prisma.user.findMany({
+    where: { isAdmin: false },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      createdAt: true,
+      orders: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          totalAmount: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  // flatten latest order
+  const formattedUsers = allUser.map((u) => ({
+    ...u,
+    latestOrder: u.orders[0] || null,
+  }));
+
+  res.status(200).json({
+    message: "Fetched users successfully",
+    users: formattedUsers,
+  });
+};
+
+// get Customers Controller
+export const handleGetCustomer = async (req: Request, res: Response) => {
+  const allCustomers = await prisma.user.findMany({
+    where: {
+      isAdmin: false,
+      orders: { some: {} }, // ensures they have at least 1 order
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      createdAt: true,
+      orders: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          totalAmount: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  // flatten latest order
+  const formattedCustomers = allCustomers.map((c) => ({
+    ...c,
+    latestOrder: c.orders[0] || null,
+  }));
+
+  res.status(200).json({
+    message: "Fetched customers successfully",
+    customers: formattedCustomers,
+  });
+};
+
+// get user details Controller
+export const handleGetUser = async (req: Request, res: Response) => {
+  const userId = req.params.userId;
+  if (!userId || typeof userId !== "string") {
+    throw { status: 403, message: "Need User ID to get details" };
+  }
+  const userDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      createdAt: true,
+      orders: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          totalAmount: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched users successfully",
+    users: userDetails,
+  });
+};
+
+// get user orders details Controller
+export const handleGetUserOrders = async (req: Request, res: Response) => {
+  const userId = req.params.userId;
+  if (!userId || typeof userId !== "string") {
+    throw { status: 403, message: "Need User ID to get details" };
+  }
+
+  const userOrderDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      orders: {
+        select: {
+          id: true,
+          orderNumber: true,
+          totalAmount: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: { orderItems: true }, // count order items
+          },
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched user orders successfully",
+    order: userOrderDetails?.orders || [],
+  });
+};
+
+// get user address details Controller
+export const handleGetUserAddress = async (req: Request, res: Response) => {
+  const userId = req.params.userId;
+  if (!userId || typeof userId !== "string") {
+    throw { status: 403, message: "Need User ID to get details" };
+  }
+
+  const userAddressDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      addresses: {
+        select: {
+          id: true,
+          fullName: true,
+          phone: true,
+          alternatePhone: true,
+          line1: true,
+          line2: true,
+          landmark: true,
+          city: true,
+          state: true,
+          country: true,
+          zipCode: true,
+
+          // Address metadata
+          label: true,
+          isDefault: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched user address successfully",
+    address: userAddressDetails?.addresses || [],
+  });
+};
+
+// get user wishlist details Controller
+export const handleGetUserWishlist = async (req: Request, res: Response) => {
+  const userId = req.params.userId;
+  if (!userId || typeof userId !== "string") {
+    throw { status: 403, message: "Need User ID to get details" };
+  }
+
+  const userWishlistDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      wishlistItems: {
+        select: {
+          id: true,
+          productId: true,
+          addedAt: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              discountedPrice: true,
+              originalPrice: true,
+              isActive: true,
+              images: {
+                where: {
+                  isMain: true,
+                },
+                select: {
+                  imageUrl: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched user wishlist successfully",
+    wishlist: userWishlistDetails?.wishlistItems || [],
+  });
+};
+
+// get user cart details Controller
+export const handleGetUserCart = async (req: Request, res: Response) => {
+  const userId = req.params.userId;
+  if (!userId || typeof userId !== "string") {
+    throw { status: 403, message: "Need User ID to get details" };
+  }
+
+  const userCartDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      cartItems: {
+        select: {
+          id: true,
+          productId: true,
+          addedAt: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              discountedPrice: true,
+              originalPrice: true,
+              isActive: true,
+              images: {
+                where: {
+                  isMain: true,
+                },
+                select: {
+                  imageUrl: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    message: "Fetched user cart successfully",
+    cart: userCartDetails?.cartItems || [],
+  });
+};

@@ -834,8 +834,7 @@ export const upiQrPaymentController = async (
   try {
     const { order, pricingResult, reservedItems } =
       await createOrderAndReserveStock(req);
-    // reservedItems = [{ productId, variant, quantity }, ...]
-
+    
     // 1. Generate unique verification token (remark1)
     const verificationToken = crypto.randomBytes(16).toString("hex");
 
@@ -857,8 +856,8 @@ export const upiQrPaymentController = async (
     await prisma.payment.create({
       data: {
         orderId: order.id,
-        method: "UPI_QR_CLOVER",
-        status: "INITIATED",
+        method: "UPI",
+        status: "PENDING",
       },
     });
 

@@ -32,7 +32,7 @@ export const cloverWebhookHandler = async (
     await prisma.payment.update({
       where: { orderId },
       data: {
-        status: status === "SUCCESS" ? "SUCCESS" : "FAILED",
+        status: status === "SUCCESS" ? "COMPLETED" : "FAILED",
         transactionId: remark1 || null,
         paidAt: status === "SUCCESS" ? new Date() : null,
       },

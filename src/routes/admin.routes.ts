@@ -15,9 +15,17 @@ import {
   handleEditCategory,
   handleEditProduct,
   handleEditSubCategory,
+  handleGetAdmin,
+  handleGetAllUser,
   handleGetCategory,
+  handleGetCustomer,
   handleGetLowLevelCategories,
   handleGetTopLevelCategories,
+  handleGetUser,
+  handleGetUserAddress,
+  handleGetUserCart,
+  handleGetUserOrders,
+  handleGetUserWishlist,
 } from "../controllers/adminProduct.controller";
 import { generateUploadUrl } from "../controllers/s3.controller";
 
@@ -108,6 +116,74 @@ router.get(
   identifySessionUser,
   isAdmin,
   handleGetLowLevelCategories
+);
+
+//
+// USER
+//
+
+// get all users
+router.get(
+  "/users",
+  identifySessionUser,
+  isAdmin,
+  handleGetAllUser
+);
+
+// get all customers
+router.get(
+  "/customers",
+  identifySessionUser,
+  isAdmin,
+  handleGetCustomer
+);
+
+// get all admins
+router.get(
+  "/admins",
+  identifySessionUser,
+  isAdmin,
+  handleGetAdmin
+);
+
+// get specific users details
+router.get(
+  "/users/:userId",
+  identifySessionUser,
+  isAdmin,
+  handleGetUser
+);
+
+// get specific users order details
+router.get(
+  "/users-order/:userId",
+  identifySessionUser,
+  isAdmin,
+  handleGetUserOrders
+);
+
+// get specific users address details
+router.get(
+  "/users-address/:userId",
+  identifySessionUser,
+  isAdmin,
+  handleGetUserAddress
+);
+
+// get specific users wishlist details
+router.get(
+  "/users-wishlist/:userId",
+  identifySessionUser,
+  isAdmin,
+  handleGetUserWishlist
+);
+
+// get specific users cart details
+router.get(
+  "/users-cart/:userId",
+  identifySessionUser,
+  isAdmin,
+  handleGetUserCart
 );
 
 export default router;
