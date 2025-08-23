@@ -348,7 +348,7 @@ export const handleGetFilteredProducts = async (
   const isAdmin = req.user?.role === "admin";
 
   // Build where conditions array
-  const whereConditions: any[] = [];
+  const whereConditions: any[] = [{ isDeleted: false }];
 
   // Handle product status filter
   if (isAdmin && status && typeof status === "string") {

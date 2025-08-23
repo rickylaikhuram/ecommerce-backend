@@ -191,3 +191,14 @@ const baseAddressSchema = z.object({
 
 export const createAddressSchema = baseAddressSchema;
 export const updateAddressSchema = baseAddressSchema.partial(); // all fields optional
+
+
+
+export const orderStatusSchema = z.enum([
+  "PENDING",
+  "CONFIRMED",
+  "SHIPPED",
+  "DELIVERED",
+  "CANCELLED",
+  "UNPLACED",
+]);

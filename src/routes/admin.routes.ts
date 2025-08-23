@@ -7,11 +7,13 @@ import {
   validateProductStock,
   validateEditProductImages,
   adminEditSubCategoryInputValidation,
+  validateOrderStatus,
 } from "../middlewares/validate.middlewares";
 import { isAdmin, identifySessionUser } from "../middlewares/auth.middlewares";
 import {
   handleAddCategory,
   handleAddProduct,
+  handleDeleteProduct,
   handleEditCategory,
   handleEditProduct,
   handleEditSubCategory,
@@ -28,6 +30,7 @@ import {
   handleGetUserCart,
   handleGetUserOrders,
   handleGetUserWishlist,
+  handleUpdateOrderStatus,
 } from "../controllers/adminProduct.controller";
 import { generateUploadUrl } from "../controllers/s3.controller";
 
@@ -61,6 +64,7 @@ router.post(
   handleAddProduct
 );
 
+// admin edit product route
 router.put(
   "/edit/product/:id",
   identifySessionUser,
@@ -69,6 +73,14 @@ router.put(
   validateEditProductImages,
   validateProductStock,
   handleEditProduct
+);
+
+// admin delete product route
+router.delete(
+  "/delete/product/:productId",
+  identifySessionUser,
+  isAdmin,
+  handleDeleteProduct
 );
 
 //
@@ -125,36 +137,16 @@ router.get(
 //
 
 // get all users
-router.get(
-  "/users",
-  identifySessionUser,
-  isAdmin,
-  handleGetAllUser
-);
+router.get("/users", identifySessionUser, isAdmin, handleGetAllUser);
 
 // get all customers
-router.get(
-  "/customers",
-  identifySessionUser,
-  isAdmin,
-  handleGetCustomer
-);
+router.get("/customers", identifySessionUser, isAdmin, handleGetCustomer);
 
 // get all admins
-router.get(
-  "/admins",
-  identifySessionUser,
-  isAdmin,
-  handleGetAdmin
-);
+router.get("/admins", identifySessionUser, isAdmin, handleGetAdmin);
 
 // get specific users details
-router.get(
-  "/users/:userId",
-  identifySessionUser,
-  isAdmin,
-  handleGetUser
-);
+router.get("/users/:userId", identifySessionUser, isAdmin, handleGetUser);
 
 // get specific users order details
 router.get(
@@ -193,12 +185,7 @@ router.get(
 //
 
 // get all orders
-router.get(
-  "/orders",
-  identifySessionUser,
-  isAdmin,
-  handleGetAllOrders
-);
+router.get("/orders", identifySessionUser, isAdmin, handleGetAllOrders);
 
 // get specific order details
 router.get(
@@ -209,11 +196,12 @@ router.get(
 );
 
 // update order status
-router.put(
+router.patch(
   "/orders/:orderId",
   identifySessionUser,
   isAdmin,
-  handleGetOrderDetails
+  validateOrderStatus,
+  handleUpdateOrderStatus
 );
 
 export default router;

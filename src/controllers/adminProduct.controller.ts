@@ -535,6 +535,27 @@ export const handleEditProduct = async (req: Request, res: Response) => {
   });
 };
 
+// delete product Controller
+export const handleDeleteProduct = async (req: Request, res: Response) => {
+  const productId = req.params.productId;
+  if (!productId || typeof productId !== "string") {
+    throw { status: 403, message: "Need Product ID to get details" };
+  }
+
+  const orderDetails = await prisma.product.update({
+    where: { id: productId },
+    data: {
+      isDeleted: true,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "Deleted product successfully",
+    order: orderDetails || [],
+  });
+};
+
 //
 // USER
 //
@@ -866,6 +887,20 @@ export const handleGetOrderDetails = async (req: Request, res: Response) => {
       status: true,
       createdAt: true,
       updatedAt: true,
+      // Customer info snapshot
+      customerName: true,
+      customerEmail: true,
+      customerPhone: true,
+
+      // Shipping address snapshot
+      shippingFullName: true,
+      shippingPhone: true,
+      shippingLine1: true,
+      shippingLine2: true,
+      shippingCity: true,
+      shippingState: true,
+      shippingCountry: true,
+      shippingZipCode: true,
       _count: {
         select: { orderItems: true }, // count order items
       },
@@ -933,3 +968,4 @@ export const handleUpdateOrderStatus = async (req: Request, res: Response) => {
     order: orderDetails || [],
   });
 };
+

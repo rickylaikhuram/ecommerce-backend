@@ -151,8 +151,10 @@ model Order {
   // Shipping address snapshot
   shippingFullName String
   shippingPhone    String
+  shippingPhone2   String?
   shippingLine1    String
   shippingLine2    String?
+  shippingLandmark String?
   shippingCity     String
   shippingState    String
   shippingCountry  String

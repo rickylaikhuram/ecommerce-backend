@@ -7,7 +7,6 @@ import { AuthRequest } from "../types/customTypes";
 import { validateCartItems } from "./cart.validate.services";
 import { calculateOrderPricing } from "./price.calculation.services";
 
-
 export async function createOrderAndReserveStock(req: AuthRequest) {
   const uid = req.user!.uid;
   const name = req.userData!.name;
@@ -68,8 +67,10 @@ export async function createOrderAndReserveStock(req: AuthRequest) {
           customerPhone: phone || address.phone,
           shippingFullName: address.fullName,
           shippingPhone: address.phone,
+          shippingPhone2: address.alternatePhone || null,
           shippingLine1: address.line1,
           shippingLine2: address.line2 || null,
+          shippingLandmark: address.landmark || null,
           shippingCity: address.city,
           shippingState: address.state,
           shippingCountry: address.country,
@@ -120,5 +121,5 @@ export async function createOrderAndReserveStock(req: AuthRequest) {
     },
   });
 
-  return { order:order!, pricingResult, validationResult, reservedItems };
+  return { order: order!, pricingResult, validationResult, reservedItems };
 }

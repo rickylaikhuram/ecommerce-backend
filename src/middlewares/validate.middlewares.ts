@@ -19,6 +19,7 @@ import {
   createAddressSchema,
   editImagesSchema,
   editSubCategorySchema,
+  orderStatusSchema,
 } from "../utils/inputValidation";
 import { sanitizeFileName } from "../utils/sanatizeString";
 
@@ -433,21 +434,21 @@ export const validateEditProductImages = (
   const result = editImagesSchema.safeParse(req.body);
 
   if (!result.success) {
-     res.status(400).json({
+    res.status(400).json({
       statusCode: 400,
       message: "Invalid images format",
       errors: result.error.flatten().fieldErrors,
     });
-    return
+    return;
   }
 
   req.body = {
-    ...req.body, 
+    ...req.body,
     deletedImages: result.data.deletedImages,
     updatedImages: result.data.updatedImages,
     newImages: result.data.newImages,
   };
- 
+
   next();
 };
 
@@ -468,6 +469,26 @@ export const validateProductStock = (
   }
 
   req.body.productStocks = result.data;
+  next();
+};
+
+// admin validate order status
+export const validateOrderStatus = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = orderStatusSchema.safeParse(req.body.status);
+
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid status format",
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  req.body.status = result.data;
   next();
 };
 
