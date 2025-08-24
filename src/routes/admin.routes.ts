@@ -8,6 +8,7 @@ import {
   validateEditProductImages,
   adminEditSubCategoryInputValidation,
   validateOrderStatus,
+  validatePriceSetting,
 } from "../middlewares/validate.middlewares";
 import { isAdmin, identifySessionUser } from "../middlewares/auth.middlewares";
 import {
@@ -24,6 +25,7 @@ import {
   handleGetCustomer,
   handleGetLowLevelCategories,
   handleGetOrderDetails,
+  handleGetPriceSetting,
   handleGetTopLevelCategories,
   handleGetUser,
   handleGetUserAddress,
@@ -31,6 +33,7 @@ import {
   handleGetUserOrders,
   handleGetUserWishlist,
   handleUpdateOrderStatus,
+  handleUpdatePriceSetting,
 } from "../controllers/adminProduct.controller";
 import { generateUploadUrl } from "../controllers/s3.controller";
 
@@ -202,6 +205,27 @@ router.patch(
   isAdmin,
   validateOrderStatus,
   handleUpdateOrderStatus
+);
+
+//
+// FEE
+//
+
+// get order status
+router.get(
+  "/pricesetting",
+  identifySessionUser,
+  isAdmin,
+  handleGetPriceSetting
+);
+
+// update order status
+router.put(
+  "/pricesetting",
+  identifySessionUser,
+  isAdmin,
+  validatePriceSetting,
+  handleUpdatePriceSetting
 );
 
 export default router;

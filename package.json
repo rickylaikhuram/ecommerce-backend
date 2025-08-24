@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "description": "an e-commerce website backend",
   "main": "index.js",
+  "prisma": {
+    "seed": "ts-node prisma/seed.js"
+  },
   "scripts": {
-    "dev": "nodemon --watch src --exec ts-node src/index.ts"
+    "dev": "nodemon --watch src --exec ts-node src/index.ts",
+    "db:seed": "npx prisma db seed",
+    "db:reset": "npx prisma migrate reset && npx prisma db seed"
   },
   "repository": {
     "type": "git",

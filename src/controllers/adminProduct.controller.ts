@@ -542,7 +542,7 @@ export const handleDeleteProduct = async (req: Request, res: Response) => {
     throw { status: 403, message: "Need Product ID to get details" };
   }
 
-  const orderDetails = await prisma.product.update({
+  const productDetails = await prisma.product.update({
     where: { id: productId },
     data: {
       isDeleted: true,
@@ -552,7 +552,7 @@ export const handleDeleteProduct = async (req: Request, res: Response) => {
   res.status(201).json({
     success: true,
     message: "Deleted product successfully",
-    order: orderDetails || [],
+    deletedProduct: productDetails || [],
   });
 };
 
@@ -969,3 +969,57 @@ export const handleUpdateOrderStatus = async (req: Request, res: Response) => {
   });
 };
 
+//
+// FEE
+//
+
+// get price setting
+export const handleGetPriceSetting = async (req: Request, res: Response) => {
+  const priceDetails = await prisma.priceSetting.findFirst({
+    select: {
+      id: true,
+      takeDeliveryFee: true,
+      checkThreshold: true,
+      deliveryFee: true,
+      freeDeliveryThreshold: true,
+      allowedZipCodes: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "fetched fee setting successfully",
+    priceSetting: priceDetails || [],
+  });
+};
+
+// update price setting
+export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
+  const {
+    id,
+    takeDeliveryFee,
+    checkThreshold,
+    deliveryFee,
+    freeDeliveryThreshold,
+    allowedZipCodes,
+  } = req.body;
+
+  const priceDetails = await prisma.priceSetting.update({
+    where: { id },
+    data: {
+      takeDeliveryFee,
+      checkThreshold,
+      deliveryFee,
+      freeDeliveryThreshold,
+      allowedZipCodes,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "updated fee setting successfully",
+    priceSetting: priceDetails || [],
+  });
+};

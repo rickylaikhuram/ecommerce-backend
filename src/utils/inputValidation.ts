@@ -108,7 +108,6 @@ export const stockSchema = z
   )
   .min(1, "At least one stock item is required");
 
-
 export const isPublishedSchema = z.coerce.boolean().default(true);
 
 // schema for category
@@ -122,7 +121,6 @@ export const categorySchema = z.object({
   imageUrl: z.string().nullable().optional(),
   altText: z.string().nullable().optional(),
 });
-
 
 export const editSubCategorySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -192,8 +190,6 @@ const baseAddressSchema = z.object({
 export const createAddressSchema = baseAddressSchema;
 export const updateAddressSchema = baseAddressSchema.partial(); // all fields optional
 
-
-
 export const orderStatusSchema = z.enum([
   "PENDING",
   "CONFIRMED",
@@ -202,3 +198,12 @@ export const orderStatusSchema = z.enum([
   "CANCELLED",
   "UNPLACED",
 ]);
+
+export const deliveryConfigSchema = z.object({
+  id: z.string().uuid(),
+  takeDeliveryFee: z.boolean().default(true),
+  checkThreshold: z.boolean().default(true),
+  deliveryFee: z.number().default(0),
+  freeDeliveryThreshold: z.number().default(0),
+  allowedZipCodes: z.array(z.string()).default([]),
+});

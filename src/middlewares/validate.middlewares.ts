@@ -20,6 +20,7 @@ import {
   editImagesSchema,
   editSubCategorySchema,
   orderStatusSchema,
+  deliveryConfigSchema,
 } from "../utils/inputValidation";
 import { sanitizeFileName } from "../utils/sanatizeString";
 
@@ -489,6 +490,26 @@ export const validateOrderStatus = (
   }
 
   req.body.status = result.data;
+  next();
+};
+
+// admin validate price setting
+export const validatePriceSetting = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = deliveryConfigSchema.safeParse(req.body);
+  
+  if (!result.success) {
+    throw {
+      statusCode: 400,
+      message: "Invalid setting format",
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  req.body = result.data;
   next();
 };
 
