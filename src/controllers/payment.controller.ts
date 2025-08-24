@@ -1,9 +1,39 @@
-import { Request, Response, NextFunction } from "express";
-import prisma from "../config/prisma";
-import { redisApp } from "../config/redis";
+import { Request, Response, NextFunction } from 'express';
+import { redisApp } from '../config/redis';
+import prisma from '../config/prisma';
+import { Prisma } from '@prisma/client';
+
+// Define the shape of the stock row returned by raw query
+interface StockRow {
+  id: string;
+  productId: string;
+  stockName: string;
+  stock: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Define the reservation data structure
+interface ReservationItem {
+  productId: string;
+  stockName: string;
+  quantity: number;
+}
+
+interface ReservationData {
+  orderId: string;
+  items: ReservationItem[];
+}
+
+// Define webhook payload structure
+interface CloverWebhookPayload {
+  order_id: string;
+  status: string;
+  remark1: string;
+}
 
 export const cloverWebhookHandler = async (
-  req: Request,
+  req: Request<{}, {}, CloverWebhookPayload>,
   res: Response,
   next: NextFunction
 ) => {
@@ -26,7 +56,7 @@ export const cloverWebhookHandler = async (
       return;
     }
 
-    const { orderId, items } = JSON.parse(reservationData);
+    const { orderId, items }: ReservationData = JSON.parse(reservationData);
 
     // Update payment record regardless of success/failure
     await prisma.payment.update({
@@ -47,15 +77,16 @@ export const cloverWebhookHandler = async (
     }
 
     // === RUN STOCK, ORDER, AND REDIS UPDATE IN A TRANSACTION ===
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const item of items) {
-        // 1. Lock the stock row
-        const [stockRow] = await tx.$queryRawUnsafe<any[]>(`
+        // 1. Lock the stock row with proper typing
+        const stockRows = await tx.$queryRawUnsafe(`
           SELECT * FROM "ProductStock"
           WHERE "productId" = $1 AND "stockName" = $2
           FOR UPDATE
-        `, item.productId, item.stockName);
+        `, item.productId, item.stockName) as StockRow[];
 
+        const stockRow = stockRows[0];
         if (!stockRow) {
           throw new Error("Stock not found");
         }
@@ -82,9 +113,9 @@ export const cloverWebhookHandler = async (
             const ttl = await redisApp.ttl(redisKey);
             // use the existing TTL if still valid, otherwise reset to 30min
             if (ttl > 0) {
-              await redisApp.set(redisKey, remaining, "EX", ttl);
+              await redisApp.set(redisKey, remaining.toString(), "EX", ttl);
             } else {
-              await redisApp.set(redisKey, remaining, "EX", 60 * 30);
+              await redisApp.set(redisKey, remaining.toString(), "EX", 60 * 30);
             }
           }
         }

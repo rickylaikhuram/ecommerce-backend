@@ -2,7 +2,10 @@ import { Request, Response } from "express";
 import prisma from "../config/prisma";
 import dotenv from "dotenv";
 import { deleteS3File } from "../services/s3.service";
-import { OrderStatus } from "@prisma/client";
+import { Prisma, OrderStatus } from "@prisma/client";
+import {
+  ImageToDelete,
+} from "../types/admin.product.types";
 
 dotenv.config();
 
@@ -168,53 +171,55 @@ export const handleEditSubCategory = async (req: Request, res: Response) => {
   }
 
   // Transaction to update category and handle image changes
-  const result = await prisma.$transaction(async (tx) => {
-    // 1. Handle image deletion if requested
-    if (deleteImage && categoryExist.imageUrl) {
-      // Delete from S3 in background
-      deleteS3File(categoryExist.imageUrl).catch((error) => {
-        console.error(
-          `Failed to delete S3 file: ${categoryExist.imageUrl}`,
-          error
-        );
-      });
-    }
-
-    // 2. Prepare category update data
-    const updateData: any = {
-      name,
-      altText: altText || name,
-    };
-
-    // Handle parentId (can be null for top-level categories)
-    if (parentId !== undefined) {
-      updateData.parentId = parentId || null;
-    }
-
-    // 3. Handle image update/deletion
-    if (deleteImage) {
-      // If deleting image, set to null
-      updateData.imageUrl = null;
-      updateData.altText = name; // Reset altText to category name
-    }
-
-    // 4. Handle updated images (new image or keeping existing)
-    if (updatedImages?.length > 0) {
-      const imageToUpdate = updatedImages[0];
-      if (imageToUpdate?.imageKey) {
-        updateData.imageUrl = imageToUpdate.imageKey;
-        updateData.altText = imageToUpdate.altText || name;
+  const result = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      // 1. Handle image deletion if requested
+      if (deleteImage && categoryExist.imageUrl) {
+        // Delete from S3 in background
+        deleteS3File(categoryExist.imageUrl).catch((error) => {
+          console.error(
+            `Failed to delete S3 file: ${categoryExist.imageUrl}`,
+            error
+          );
+        });
       }
+
+      // 2. Prepare category update data
+      const updateData: any = {
+        name,
+        altText: altText || name,
+      };
+
+      // Handle parentId (can be null for top-level categories)
+      if (parentId !== undefined) {
+        updateData.parentId = parentId || null;
+      }
+
+      // 3. Handle image update/deletion
+      if (deleteImage) {
+        // If deleting image, set to null
+        updateData.imageUrl = null;
+        updateData.altText = name; // Reset altText to category name
+      }
+
+      // 4. Handle updated images (new image or keeping existing)
+      if (updatedImages?.length > 0) {
+        const imageToUpdate = updatedImages[0];
+        if (imageToUpdate?.imageKey) {
+          updateData.imageUrl = imageToUpdate.imageKey;
+          updateData.altText = imageToUpdate.altText || name;
+        }
+      }
+
+      // 5. Update the category with all changes
+      const updatedCategory = await tx.category.update({
+        where: { id: categoryExist.id },
+        data: updateData,
+      });
+
+      return updatedCategory;
     }
-
-    // 5. Update the category with all changes
-    const updatedCategory = await tx.category.update({
-      where: { id: categoryExist.id },
-      data: updateData,
-    });
-
-    return updatedCategory;
-  });
+  );
 
   // Get updated category with parent info for response
   const updatedCategoryWithParent = await prisma.category.findUnique({
@@ -331,42 +336,44 @@ export const handleAddProduct = async (req: Request, res: Response) => {
   }
 
   // Transaction to create product, images, and stocks
-  const result = await prisma.$transaction(async (tx) => {
-    const createdProduct = await tx.product.create({
-      data: {
-        name,
-        description,
-        discountedPrice,
-        originalPrice,
-        isActive,
-        categoryId: categoryExist.id,
-      },
-    });
-
-    if (images?.length > 0) {
-      await tx.productImage.createMany({
-        data: images.map((img: any) => ({
-          imageUrl: img.imageKey,
-          altText: img.altText || null,
-          position: img.position || null,
-          isMain: img.isMain || false,
-          productId: createdProduct.id,
-        })),
+  const result = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      const createdProduct = await tx.product.create({
+        data: {
+          name,
+          description,
+          discountedPrice,
+          originalPrice,
+          isActive,
+          categoryId: categoryExist.id,
+        },
       });
-    }
 
-    if (productStocks?.length > 0) {
-      await tx.productStock.createMany({
-        data: productStocks.map((stock: any) => ({
-          stockName: stock.stockName,
-          stock: stock.stock,
-          productId: createdProduct.id,
-        })),
-      });
-    }
+      if (images?.length > 0) {
+        await tx.productImage.createMany({
+          data: images.map((img: any) => ({
+            imageUrl: img.imageKey,
+            altText: img.altText || null,
+            position: img.position || null,
+            isMain: img.isMain || false,
+            productId: createdProduct.id,
+          })),
+        });
+      }
 
-    return createdProduct;
-  });
+      if (productStocks?.length > 0) {
+        await tx.productStock.createMany({
+          data: productStocks.map((stock: any) => ({
+            stockName: stock.stockName,
+            stock: stock.stock,
+            productId: createdProduct.id,
+          })),
+        });
+      }
+
+      return createdProduct;
+    }
+  );
 
   res.status(200).json({
     message: "Product created successfully",
@@ -423,103 +430,105 @@ export const handleEditProduct = async (req: Request, res: Response) => {
   }
 
   // Transaction to update product, images, and stocks
-  const result = await prisma.$transaction(async (tx) => {
-    // 1. Update the main product data
-    const updatedProduct = await tx.product.update({
-      where: { id: productExist.id },
-      data: {
-        name,
-        description,
-        discountedPrice,
-        originalPrice,
-        isActive,
-        categoryId: categoryExist.id,
-      },
-    });
+  const result = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
+      // 1. Update the main product data
+      const updatedProduct = await tx.product.update({
+        where: { id: productExist.id },
+        data: {
+          name,
+          description,
+          discountedPrice,
+          originalPrice,
+          isActive,
+          categoryId: categoryExist.id,
+        },
+      });
 
-    // 2. Handle deleted images
-    if (deletedImages?.length > 0) {
-      // Get the images to be deleted for S3 cleanup
-      const imagesToDelete = await tx.productImage.findMany({
-        where: {
-          id: {
-            in: deletedImages.map((img: any) => img.id),
+      // 2. Handle deleted images
+      if (deletedImages?.length > 0) {
+        // Get the images to be deleted for S3 cleanup
+        const imagesToDelete = await tx.productImage.findMany({
+          where: {
+            id: {
+              in: deletedImages.map((img: any) => img.id),
+            },
           },
-        },
-        select: {
-          imageUrl: true,
-        },
-      });
-
-      // Delete from database
-      await tx.productImage.deleteMany({
-        where: {
-          id: {
-            in: deletedImages.map((img: any) => img.id),
+          select: {
+            imageUrl: true,
           },
-        },
-      });
+        });
 
-      // Delete from S3 (run in background)
-      Promise.all(
-        imagesToDelete.map(async (img) => {
-          try {
-            await deleteS3File(img.imageUrl);
-          } catch (error) {
-            console.error(`Failed to delete S3 file: ${img.imageUrl}`, error);
-          }
-        })
-      ).catch((error) => {
-        console.error("Error deleting S3 files:", error);
-      });
-    }
+        // Delete from database
+        await tx.productImage.deleteMany({
+          where: {
+            id: {
+              in: deletedImages.map((img: any) => img.id),
+            },
+          },
+        });
 
-    // 3. Handle updated images
-    if (updatedImages?.length > 0) {
-      for (const img of updatedImages) {
-        await tx.productImage.update({
-          where: { id: img.id },
-          data: {
+        // Delete from S3 (run in background)
+        Promise.all(
+          imagesToDelete.map(async (img: ImageToDelete) => {
+            try {
+              await deleteS3File(img.imageUrl);
+            } catch (error) {
+              console.error(`Failed to delete S3 file: ${img.imageUrl}`, error);
+            }
+          })
+        ).catch((error) => {
+          console.error("Error deleting S3 files:", error);
+        });
+      }
+
+      // 3. Handle updated images
+      if (updatedImages?.length > 0) {
+        for (const img of updatedImages) {
+          await tx.productImage.update({
+            where: { id: img.id },
+            data: {
+              altText: img.altText || null,
+              position: img.position || 0,
+              isMain: img.isMain || false,
+            },
+          });
+        }
+      }
+
+      // 4. Handle new images
+      if (newImages?.length > 0) {
+        await tx.productImage.createMany({
+          data: newImages.map((img: any) => ({
+            imageUrl: img.imageKey,
             altText: img.altText || null,
             position: img.position || 0,
             isMain: img.isMain || false,
-          },
+            productId: productExist.id, // Use original ID
+          })),
         });
       }
+
+      // 5. Handle product stocks - FIXED: Use original ID
+      if (productStocks?.length > 0) {
+        // Delete all existing stocks
+        await tx.productStock.deleteMany({
+          where: { productId: productExist.id },
+        });
+
+        // Create new stocks
+        await tx.productStock.createMany({
+          data: productStocks.map((stock: any) => ({
+            stockName: stock.stockName,
+            stock: stock.stock,
+            productId: productExist.id, // Use original ID
+          })),
+        });
+      }
+
+      return updatedProduct;
     }
-
-    // 4. Handle new images
-    if (newImages?.length > 0) {
-      await tx.productImage.createMany({
-        data: newImages.map((img: any) => ({
-          imageUrl: img.imageKey,
-          altText: img.altText || null,
-          position: img.position || 0,
-          isMain: img.isMain || false,
-          productId: productExist.id, // Use original ID
-        })),
-      });
-    }
-
-    // 5. Handle product stocks - FIXED: Use original ID
-    if (productStocks?.length > 0) {
-      // Delete all existing stocks
-      await tx.productStock.deleteMany({
-        where: { productId: productExist.id },
-      });
-
-      // Create new stocks
-      await tx.productStock.createMany({
-        data: productStocks.map((stock: any) => ({
-          stockName: stock.stockName,
-          stock: stock.stock,
-          productId: productExist.id, // Use original ID
-        })),
-      });
-    }
-
-    return updatedProduct;
-  });
+  );
 
   res.status(200).json({
     message: "Product updated successfully",
@@ -954,7 +963,7 @@ export const handleUpdateOrderStatus = async (req: Request, res: Response) => {
     throw { status: 403, message: "Need Order ID to get details" };
   }
 
-  const status: OrderStatus = req.body.status;
+  const status = req.body.status as OrderStatus;
 
   const orderDetails = await prisma.order.update({
     where: { id: orderId },
