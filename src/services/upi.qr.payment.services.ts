@@ -26,7 +26,7 @@ export async function createCloverOrder(
   const params = new URLSearchParams();
   params.append("customer_mobile", customerMobile);
   params.append("user_token", CLOVERSHOP_API_TOKEN);
-  params.append("amount", String(amount)); 
+  params.append("amount", String(amount));
   params.append("order_id", orderId);
   params.append("redirect_url", redirectUrl);
   params.append("remark1", remark1 || "");
@@ -53,14 +53,6 @@ export async function createCloverOrder(
 
     return data.result;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error("Clover API Error:", error.response?.data);
-      console.error("Status Code:", error.response?.status);
-      throw new Error(
-        error.response?.data?.message ||
-          `Clover API error: ${error.response?.status || "Unknown"}`
-      );
-    }
-    throw error;
+    throw new Error(`Clover API error: ${error || "Unknown"}`);
   }
 }
