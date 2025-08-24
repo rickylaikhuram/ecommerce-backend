@@ -1,6 +1,6 @@
 import prisma from "../config/prisma";
 
-interface DeliveryCalculationResult {
+export interface DeliveryCalculationResult {
   canDeliver: boolean;
   deliveryFee: number;
   freeDeliveryApplied: boolean;

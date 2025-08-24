@@ -6,8 +6,18 @@ import { CreateOrderRequest } from "../types/checkout.types";
 import { AuthRequest } from "../types/customTypes";
 import { validateCartItems } from "./cart.validate.services";
 import { calculateOrderPricing } from "./price.calculation.services";
+import type { DeliveryCalculationResult } from "./price.calculation.services";
 
-export async function createOrderAndReserveStock(req: AuthRequest) {
+export async function createOrderAndReserveStock(req: AuthRequest): Promise<{
+  order: any;
+  pricingResult: DeliveryCalculationResult;
+  validationResult: any;
+  reservedItems: {
+    productId: string;
+    stockName: string;
+    quantity: number;
+  }[];
+}> {
   const uid = req.user!.uid;
   const name = req.userData!.name;
   const email = req.userData!.email;
