@@ -30,6 +30,7 @@ import {
   getAllOrder,
   getOrderDetails,
   changePassword,
+  cashOnDeliveryController,
 } from "../controllers/user.controller";
 import {
   handleOtpSigninInitiate,
@@ -298,6 +299,17 @@ router.post(
   validateCheckProducts,
   upiQrPaymentController
 );
+
+router.post(
+  "/create-order/cod",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  validateAddressBody,
+  validateCheckProducts,
+  cashOnDeliveryController
+);
+
 router.get(
   "/orders",
   identifySessionUser,
@@ -305,6 +317,7 @@ router.get(
   queryExistingUserCheck,
   getAllOrder
 );
+
 router.get(
   "/orders/:orderId",
   identifySessionUser,
@@ -312,6 +325,7 @@ router.get(
   queryExistingUserCheck,
   getOrderDetails
 );
+
 // log out user
 router.post("/logout", logoutUser);
 

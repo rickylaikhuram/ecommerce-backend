@@ -9,7 +9,7 @@ import {
   findUserByPhone,
 } from "../services/user.service";
 import { redisApp, redisOtp } from "../config/redis";
-import { createOrderAndReserveStock } from "../services/create.order.service";
+import { createOrderWithPaymentMethod } from "../services/create.order.service";
 import { createCloverOrder } from "../services/upi.qr.payment.services";
 import { emailSchema, indianPhoneNumberSchema } from "../utils/inputValidation";
 import { generateOTP } from "../utils/otp";
@@ -833,7 +833,7 @@ export const upiQrPaymentController = async (
 ) => {
   try {
     const { order, pricingResult, reservedItems } =
-      await createOrderAndReserveStock(req);
+      await createOrderWithPaymentMethod(req, 'UPI');
     
     // 1. Generate unique verification token (remark1)
     const verificationToken = crypto.randomBytes(16).toString("hex");
@@ -874,6 +874,36 @@ export const upiQrPaymentController = async (
       orderId: order.id,
       amount: pricingResult.finalTotal,
       paymentUrl: cloverOrder.payment_url,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const cashOnDeliveryController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { order, pricingResult } =
+      await createOrderWithPaymentMethod(req, 'COD');
+
+    // Create payment record in DB
+    await prisma.payment.create({
+      data: {
+        orderId: order.id,
+        method: "COD",
+        status: "COMPLETED",
+      },
+    });
+
+    // Respond to client
+    res.status(200).json({
+      success: true,
+      orderId: order.id,
+      amount: pricingResult.finalTotal,
+      message: "Order placed successfully. Payment will be collected on delivery.",
     });
   } catch (err) {
     next(err);

@@ -8,11 +8,14 @@ import { validateCartItems } from "./cart.validate.services";
 import { calculateOrderPricing } from "./price.calculation.services";
 import type { DeliveryCalculationResult } from "./price.calculation.services";
 
-export async function createOrderAndReserveStock(req: AuthRequest): Promise<{
+export async function createOrderWithPaymentMethod(
+  req: AuthRequest,
+  paymentMethod: "UPI" | "COD"
+): Promise<{
   order: any;
   pricingResult: DeliveryCalculationResult;
   validationResult: any;
-  reservedItems: {
+  reservedItems?: {
     productId: string;
     stockName: string;
     quantity: number;
@@ -40,21 +43,61 @@ export async function createOrderAndReserveStock(req: AuthRequest): Promise<{
     throw new Error(pricingResult.message);
   }
 
-  // 3. Reserve stock in Redis
-  const reservedItems: {
-    productId: string;
-    stockName: string;
-    quantity: number;
-  }[] = [];
+  let reservedItems:
+    | {
+        productId: string;
+        stockName: string;
+        quantity: number;
+      }[]
+    | undefined;
 
-  for (const item of productDatas) {
-    const key = `stock:reservation:${item.productId}:${item.productVarient}`;
-    await redisApp.incrby(key, item.quantity);
-    await redisApp.expire(key, 60 * 30);
-    reservedItems.push({
-      productId: item.productId,
-      stockName: item.productVarient,
-      quantity: item.quantity,
+  // 3. Handle stock based on payment method
+  if (paymentMethod === "UPI") {
+    // Reserve stock in Redis for UPI (temporary reservation)
+    reservedItems = [];
+    for (const item of productDatas) {
+      const key = `stock:reservation:${item.productId}:${item.productVarient}`;
+      await redisApp.incrby(key, item.quantity);
+      await redisApp.expire(key, 60 * 30); // 30 minutes expiry
+      reservedItems.push({
+        productId: item.productId,
+        stockName: item.productVarient,
+        quantity: item.quantity,
+      });
+    }
+  } else if (paymentMethod === "COD") {
+    // For COD, directly update stock in database
+    const transaction = await prisma.$transaction(async (tx) => {
+      for (const item of productDatas) {
+        // Check if sufficient stock is available
+        const stockRecord = await tx.productStock.findFirst({
+          where: {
+            productId: item.productId,
+            stockName: item.productVarient,
+          },
+        });
+
+        if (!stockRecord || stockRecord.stock < item.quantity) {
+          throw new ApiError(
+            400,
+            "INSUFFICIENT_STOCK",
+            `Insufficient stock for ${item.productVarient}`
+          );
+        }
+
+        // Decrement stock immediately for COD
+        await tx.productStock.updateMany({
+          where: {
+            productId: item.productId,
+            stockName: item.productVarient,
+          },
+          data: {
+            stock: {
+              decrement: item.quantity,
+            },
+          },
+        });
+      }
     });
   }
 
