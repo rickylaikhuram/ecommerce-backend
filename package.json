@@ -8,10 +8,11 @@
   },
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "npx prisma generate && tsc",
+    "start": "npx prisma migrate deploy && node dist/index.js",
     "db:seed": "npx prisma db seed",
-    "db:reset": "npx prisma migrate reset && npx prisma db seed"
+    "db:reset": "npx prisma migrate reset && npx prisma db seed",
+    "postinstall": "npx prisma generate"
   },
   "repository": {
     "type": "git",
