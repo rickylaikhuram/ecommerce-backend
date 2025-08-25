@@ -34,7 +34,7 @@ app.use("/api/user", user);
 app.use("/api/admin", admin);
 app.use("/api/product", products);
 
-app.use("api/payment", paymentRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.post("/test", (req, res) => {
   res.send("Test route works");
