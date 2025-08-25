@@ -602,7 +602,7 @@ export const validateAddressBody = (
   next: NextFunction
 ) => {
   const result = createAddressSchema.safeParse(req.body.address);
-
+console.log(req.body.address)
   if (!result.success) {
     const formatted = result.error.flatten();
 

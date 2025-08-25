@@ -36,6 +36,10 @@ app.use("/api/product", products);
 
 app.use("api/payment", paymentRoutes);
 
+app.post("/test", (req, res) => {
+  res.send("Test route works");
+});
+
 // Global Error Handler
 app.use(errorHandler);
 
