@@ -1083,7 +1083,6 @@ export const handleEditBanner = async (req: Request, res: Response) => {
           error
         );
       });
-      
     }
 
     // 2. Prepare update data
@@ -1117,6 +1116,35 @@ export const handleEditBanner = async (req: Request, res: Response) => {
       imageUrl: result.imageUrl,
       altText: result.altText,
       redirectUrl: result.redirectUrl,
+    },
+  });
+};
+
+// delete banner Controller
+export const handleDeleteBanner = async (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (!id) throw { status: 400, message: "Banner ID is required" }; // Changed from 403 to 400
+
+  const bannerExist = await prisma.banner.findUnique({ where: { id } });
+  if (!bannerExist) throw { status: 404, message: "Banner not found" }; // Changed from 403 to 404
+
+  // Delete the banner from database first
+  const deleted = await prisma.banner.delete({ where: { id: bannerExist.id } });
+
+  // Try to delete S3 file - don't block the response if it fails
+  deleteS3File(bannerExist.imageUrl).catch((error) => {
+    console.error(`Failed to delete S3 file: ${bannerExist.imageUrl}`, error);
+    // Consider adding logging service here for production
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Banner deleted successfully", // Fixed message
+    banner: {
+      id: deleted.id,
+      imageUrl: deleted.imageUrl,
+      altText: deleted.altText,
+      redirectUrl: deleted.redirectUrl,
     },
   });
 };
