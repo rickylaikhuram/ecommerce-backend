@@ -9,9 +9,11 @@ import {
   adminEditSubCategoryInputValidation,
   validateOrderStatus,
   validatePriceSetting,
+  adminBannerInputValidation,
 } from "../middlewares/validate.middlewares";
 import { isAdmin, identifySessionUser } from "../middlewares/auth.middlewares";
 import {
+  handleAddBanner,
   handleAddCategory,
   handleAddProduct,
   handleDeleteProduct,
@@ -19,6 +21,7 @@ import {
   handleEditProduct,
   handleEditSubCategory,
   handleGetAdmin,
+  handleGetAllBanner,
   handleGetAllOrders,
   handleGetAllUser,
   handleGetCategory,
@@ -226,6 +229,26 @@ router.put(
   isAdmin,
   validatePriceSetting,
   handleUpdatePriceSetting
+);
+
+//
+// BANNER
+//
+
+router.post(
+  "/banner",
+  identifySessionUser,
+  isAdmin,
+  adminBannerInputValidation,
+  handleAddBanner
+);
+
+router.get(
+  "/banner",
+  identifySessionUser,
+  isAdmin,
+  adminBannerInputValidation,
+  handleGetAllBanner
 );
 
 export default router;

@@ -3,9 +3,7 @@ import prisma from "../config/prisma";
 import dotenv from "dotenv";
 import { deleteS3File } from "../services/s3.service";
 import { Prisma, OrderStatus } from "@prisma/client";
-import {
-  ImageToDelete,
-} from "../types/admin.product.types";
+import { ImageToDelete } from "../types/admin.product.types";
 
 dotenv.config();
 
@@ -972,7 +970,7 @@ export const handleUpdateOrderStatus = async (req: Request, res: Response) => {
     },
   });
 
-  res.status(201).json({
+  res.status(200).json({
     message: "updated order status successfully",
     order: orderDetails || [],
   });
@@ -997,7 +995,7 @@ export const handleGetPriceSetting = async (req: Request, res: Response) => {
     },
   });
 
-  res.status(201).json({
+  res.status(200).json({
     success: true,
     message: "fetched fee setting successfully",
     priceSetting: priceDetails || [],
@@ -1026,9 +1024,99 @@ export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
     },
   });
 
-  res.status(201).json({
+  res.status(200).json({
     success: true,
     message: "updated fee setting successfully",
     priceSetting: priceDetails || [],
+  });
+};
+
+//
+// BANNER
+//
+
+// add banner
+export const handleAddBanner = async (req: Request, res: Response) => {
+  const { imageUrl, altText, redirectUrl } = req.body;
+  const addedBanner = await prisma.banner.create({
+    data: {
+      imageUrl,
+      altText: altText || null,
+      redirectUrl,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "banner added successfully",
+    banner: addedBanner,
+  });
+};
+
+// get banner
+export const handleGetAllBanner = async (req: Request, res: Response) => {
+  const fetchedAllBanner = await prisma.banner.findMany({});
+
+  res.status(200).json({
+    success: true,
+    message: "fetched all banner successfully",
+    banner: fetchedAllBanner,
+  });
+};
+
+// edit banner Controller
+export const handleEditBanner = async (req: Request, res: Response) => {
+  const { altText, deleteImage, updatedImages, redirectUrl } = req.body;
+
+  const id = req.params.id;
+  if (!id) throw { status: 403, message: "Need Banner ID to edit" };
+
+  const bannerExist = await prisma.banner.findUnique({ where: { id } });
+  if (!bannerExist) throw { status: 403, message: "Banner doesn't exist" };
+
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Delete old image if requested
+    if (deleteImage && bannerExist.imageUrl) {
+      deleteS3File(bannerExist.imageUrl).catch((error) => {
+        console.error(
+          `Failed to delete S3 file: ${bannerExist.imageUrl}`,
+          error
+        );
+      });
+      
+    }
+
+    // 2. Prepare update data
+    const updateData: any = {
+      altText: altText.trim(),
+      redirectUrl,
+    };
+
+    // 3. Handle new image logic
+    if (updatedImages.length > 0) {
+      // Take the first new image (or extend to handle multiple)
+      const imageToUpdate = updatedImages[0];
+      updateData.imageUrl = imageToUpdate.imageKey;
+      updateData.altText = imageToUpdate.altText?.trim() || altText.trim();
+    } else {
+      // No new image → keep the old one
+      updateData.imageUrl = bannerExist.imageUrl;
+    }
+
+    return await tx.banner.update({
+      where: { id: bannerExist.id },
+      data: updateData,
+    });
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Banner updated successfully",
+    banner: {
+      id: result.id,
+      imageUrl: result.imageUrl,
+      altText: result.altText,
+      redirectUrl: result.redirectUrl,
+    },
   });
 };

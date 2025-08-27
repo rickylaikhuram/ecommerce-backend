@@ -143,6 +143,41 @@ export const editSubCategorySchema = z.object({
   ),
 });
 
+// schema for banner
+export const bannerSchema = z.object({
+  imageUrl: z.string(),
+  altText: z.string().nullable().optional(),
+  redirectUrl: z
+    .string()
+    .regex(
+      /^\/[A-Za-z0-9?&=/_-]*$/,
+      "Link must start with '/' and contain a valid path"
+    ),
+});
+
+export const editbannerSchema = z
+  .object({
+    altText: z.string().min(1, "altText is required"),
+    deleteImage: z.boolean(),
+    updatedImages: z.array(
+      z.object({
+        imageKey: z.string().min(1, "imageKey is required"),
+        altText: z.string().min(1, "altText is required"),
+      })
+    ),
+    redirectUrl: z
+      .string()
+      .regex(
+        /^\/[A-Za-z0-9?&=/_-]*$/,
+        "Link must start with '/' and contain a valid path"
+      ),
+  })
+  .refine((data) => !(data.deleteImage && data.updatedImages.length === 0), {
+    message:
+      "If deleteImage is true, you must provide at least one new image in updatedImages",
+    path: ["updatedImages"],
+  });
+
 // schema for add to cart
 export const addToCartSchema = z.object({
   productId: z.string().uuid(),

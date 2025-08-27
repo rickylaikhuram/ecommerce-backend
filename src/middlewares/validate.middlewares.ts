@@ -21,6 +21,8 @@ import {
   editSubCategorySchema,
   orderStatusSchema,
   deliveryConfigSchema,
+  bannerSchema,
+  editbannerSchema,
 } from "../utils/inputValidation";
 import { sanitizeFileName } from "../utils/sanatizeString";
 
@@ -512,6 +514,65 @@ export const validatePriceSetting = (
   req.body = result.data;
   next();
 };
+
+// admin banner input validation
+export const adminBannerInputValidation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = bannerSchema.safeParse(req.body);
+
+    if (!result.success) {
+      const errors = result.error.format();
+      throw {
+        statusCode: 411,
+        message: "Validation failed",
+        errors: errors,
+      };
+    }
+
+    req.body = result.data;
+    next();
+  } catch (error: any) {
+    res.status(error?.statusCode || 500).json({
+      success: false,
+      message: error?.message || "Internal server error",
+      errors: error?.errors || error,
+    });
+  }
+};
+
+// admin edit banner input validation
+export const adminEditBannerInputValidation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const result = editbannerSchema.safeParse(req.body);
+
+    if (!result.success) {
+      const errors = result.error.format();
+      throw {
+        statusCode: 411,
+        message: "Validation failed",
+        errors: errors,
+      };
+    }
+
+    req.body = result.data;
+    next();
+  } catch (error: any) {
+    res.status(error?.statusCode || 500).json({
+      success: false,
+      message: error?.message || "Internal server error",
+      errors: error?.errors || error,
+    });
+  }
+};
+
 
 //
 // USER RELATED VALIDATION ROUTES
