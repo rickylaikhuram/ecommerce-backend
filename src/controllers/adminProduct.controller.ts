@@ -1056,7 +1056,7 @@ export const handleAddBanner = async (req: Request, res: Response) => {
 // get banner
 export const handleGetAllBanner = async (req: Request, res: Response) => {
   const fetchedAllBanner = await prisma.banner.findMany({});
-
+  
   res.status(200).json({
     success: true,
     message: "fetched all banner successfully",
