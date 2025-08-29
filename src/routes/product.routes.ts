@@ -7,7 +7,7 @@ import {
   handlePopularSearches,
   handleSearchAutocomplete,
 } from "../controllers/userProduct.controller";
-import { handleGetAllBanner, handleGetCategory } from "../controllers/adminProduct.controller";
+import { handleGetAllBanner } from "../controllers/adminProduct.controller";
 const router = Router();
 
 //get all the products
@@ -34,12 +34,6 @@ router.get("/search/popular", identifySessionUser, handlePopularSearches);
 //
 
 router.get("/banners", identifySessionUser, handleGetAllBanner);
-
-//
-// CATEGORIES
-//
-
-router.get("/categories", identifySessionUser, handleGetCategory);
 
 // Single product detail
 router.get("/:id", identifySessionUser, handleGetProductById);

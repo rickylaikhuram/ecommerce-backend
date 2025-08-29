@@ -801,26 +801,58 @@ export const handleGetAllCategories = async (
   next: NextFunction
 ) => {
   try {
-    // Fetch only top-level categories with their children
     const categories = await prisma.category.findMany({
       where: {
-        parentId: null, // Only get top-level categories
+        parentId: null, // top-level only
       },
       include: {
         children: {
           include: {
-            children: true, // Include sub-subcategories if needed
+            products: true, // only for filtering
+            children: {
+              include: {
+                products: true, // only for filtering
+              },
+            },
           },
         },
+        products: true, // only for filtering
       },
     });
 
-    if (!categories || categories.length === 0) {
+    // recursive filter to keep only categories that have products in them or their children
+    function filterCategories(cats: any[]): any[] {
+      return cats
+        .map((cat) => {
+          const filteredChildren = filterCategories(cat.children || []);
+
+          const hasProducts =
+            (cat.products && cat.products.length > 0) ||
+            filteredChildren.length > 0;
+
+          if (!hasProducts) return null;
+
+          // remove products from response (don’t expose them)
+          return {
+            id: cat.id,
+            name: cat.name,
+            parentId: cat.parentId,
+            imageUrl: cat.imageUrl,
+            altText: cat.altText,
+            children: filteredChildren,
+          };
+        })
+        .filter(Boolean);
+    }
+
+    const filtered = filterCategories(categories);
+
+    if (filtered.length === 0) {
       res.status(404).json({ message: "Categories not found" });
       return;
     }
 
-    res.json({ categories });
+    res.json({ categories: filtered });
   } catch (error) {
     next(error);
   }
