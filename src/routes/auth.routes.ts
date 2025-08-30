@@ -22,7 +22,10 @@ const router = Router();
 
 //get current user
 router.get("/me", identifySessionUser, (req: AuthRequest, res) => {
-  res.status(200).json({ user: req.user });
+  res.status(200).json({
+    user: req.user,
+    token: req.token,
+  });
 });
 
 /* -------------------- SIGN UP -------------------- */

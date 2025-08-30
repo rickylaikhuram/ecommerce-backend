@@ -12,13 +12,23 @@ export const identifySessionUser = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token = req.cookies.token;
+  // Check both cookie and Authorization header
+  let token = req.cookies.token;
+
+  // If no cookie token, check Authorization header
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    }
+  }
 
   try {
     if (!token) throw new Error("No token");
 
     const decoded = verifyToken(token); // Will throw if invalid or expired
     req.user = decoded;
+    req.token = token; // Store the existing valid token
     return next(); // Proceed with valid user
   } catch (err: any) {
     try {
@@ -36,9 +46,10 @@ export const identifySessionUser = async (
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 1 * 24 * 60 * 60 * 1000,
-      })
+      });
 
       req.user = guestDecoded;
+      req.token = guestToken; // Store the new guest token
       return next();
     } catch (guestErr) {
       console.error("Guest token creation failed:", guestErr);

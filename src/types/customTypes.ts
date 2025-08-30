@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { User,Product } from "@prisma/client";
+import { User, Product } from "@prisma/client";
 
 export interface DecodedToken {
   uid: string;
@@ -16,11 +16,11 @@ export interface UserExtend extends Request {
 export interface AuthRequest extends Request {
   user?: DecodedToken;
   userData?: User;
+  token?: string;
 }
 export interface ProductRequest extends Request {
   product?: Product;
 }
-
 
 export type GuestCartItem = {
   productId: string;

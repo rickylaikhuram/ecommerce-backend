@@ -176,6 +176,7 @@ export const handleVerifiedUserSignup = async (
       })
       .json({
         message: "Signup successful",
+        token,
         user: { id: user.id, email: user.email, name: user.name },
       });
   } catch (err) {
@@ -238,6 +239,7 @@ export const handleUserSignin = async (
       })
       .json({
         message: "Signin successful",
+        token,
         user: {
           id: existingUser.id,
           name: existingUser.name,
@@ -338,6 +340,7 @@ export const handleUserSigninWithOtp = async (
       })
       .json({
         message: "Signin successful",
+        token,
         user: {
           id: existingUser.id,
           email: existingUser.email,
