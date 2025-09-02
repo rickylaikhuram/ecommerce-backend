@@ -4,6 +4,7 @@ import { findProductById } from "../services/product.services";
 import { AuthRequest } from "../types/customTypes";
 import { checkDeliveryAvailability } from "../services/delivery.services";
 import { AutocompleteResult } from "../types/product.types";
+import { redisApp } from "../config/redis";
 
 //
 // PRODUCT
@@ -737,6 +738,7 @@ export const handleGetFilteredProducts = async (
 // single product detail
 export const handleGetProductById = async (req: Request, res: Response) => {
   const { id } = req.params;
+
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
@@ -752,6 +754,22 @@ export const handleGetProductById = async (req: Request, res: Response) => {
     res.status(404).json({ message: "Product not found" });
     return;
   }
+
+  // Replace stock with available stock
+  product.productSizes = await Promise.all(
+    product.productSizes.map(async (variant) => {
+      const reservationKey = `stock:reservation:${product.id}:${variant.stockName}`;
+      const reservedQty = await redisApp.get(reservationKey);
+
+      return {
+        ...variant,
+        stock: Math.max(
+          0,
+          variant.stock - (reservedQty ? parseInt(reservedQty) : 0)
+        ), // overwrite stock here
+      };
+    })
+  );
 
   // Increment views
   await prisma.product.update({
