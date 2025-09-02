@@ -28,7 +28,7 @@ export async function createOrderWithPaymentMethod(
 
   const { productDatas, address }: CreateOrderRequest = req.body;
 
-  // 1. Validate cart
+  // 1. Validate cart (this now properly checks Redis reservations)
   const validationResult = await validateCartItems(uid, productDatas);
   if (!validationResult.canProceed) {
     throw new ApiError(400, "CART_VALIDATION_FAILED", validationResult.message);
@@ -55,29 +55,46 @@ export async function createOrderWithPaymentMethod(
   if (paymentMethod === "UPI") {
     // Reserve stock in Redis for UPI (temporary reservation)
     reservedItems = [];
-    for (const item of productDatas) {
-      const key = `stock:reservation:${item.productId}:${item.productVarient}`;
-      await redisApp.incrby(key, item.quantity);
-      await redisApp.expire(key, 60 * 30); // 30 minutes expiry
-      reservedItems.push({
-        productId: item.productId,
-        stockName: item.productVarient,
-        quantity: item.quantity,
-      });
+    
+    try {
+      for (const item of productDatas) {
+        const key = `stock:reservation:${item.productId}:${item.productVarient}`;
+
+        // Use a more robust reservation system
+        const pipeline = redisApp.pipeline();
+        pipeline.incrby(key, item.quantity);
+        pipeline.expire(key, 60 * 30); // 30 minutes expiry
+        await pipeline.exec();
+
+        reservedItems.push({
+          productId: item.productId,
+          stockName: item.productVarient,
+          quantity: item.quantity,
+        });
+      }
+    } catch (error) {
+      // Rollback reservations if any fail
+      if (reservedItems) {
+        for (const item of reservedItems) {
+          const key = `stock:reservation:${item.productId}:${item.stockName}`;
+          await redisApp.decrby(key, item.quantity);
+        }
+      }
+      throw error;
     }
   } else if (paymentMethod === "COD") {
     // For COD, directly update stock in database
-    const transaction = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       for (const item of productDatas) {
-        // Check if sufficient stock is available
-        const stockRecord = await tx.productStock.findFirst({
+        // Get current stock with proper table reference
+        const productSize = await tx.productStock.findFirst({
           where: {
             productId: item.productId,
             stockName: item.productVarient,
           },
         });
 
-        if (!stockRecord || stockRecord.stock < item.quantity) {
+        if (!productSize || productSize.stock < item.quantity) {
           throw new ApiError(
             400,
             "INSUFFICIENT_STOCK",
@@ -101,7 +118,7 @@ export async function createOrderWithPaymentMethod(
     });
   }
 
-  // 4. Create order in DB (with retry on collision)
+  // 4. Create order in DB (rest of the code remains the same)
   let order;
   let created = false;
 
@@ -160,7 +177,7 @@ export async function createOrderWithPaymentMethod(
     } catch (err: any) {
       if (err.code === "P2002" && err.meta?.target?.includes("orderNumber")) {
         console.warn("Order number collision, retrying...");
-        continue; // retry loop
+        continue;
       }
       throw err;
     }

@@ -1,5 +1,6 @@
 // services/cartValidationService.ts
 import prisma from "../config/prisma";
+import { redisApp } from "../config/redis";
 import { ProductData } from "../types/checkout.types";
 
 export const validateCartItems = async (
@@ -63,7 +64,7 @@ export const validateCartItems = async (
   let totalOrderAmount = 0;
 
   for (const { productId, productVarient } of productDatas) {
-    const product = products.find((p) => p.id === productId);
+    let product = products.find((p) => p.id === productId);
     if (!product) {
       canProceed = false;
       message = `Product ${productId} not found or inactive`;
@@ -86,9 +87,15 @@ export const validateCartItems = async (
       break;
     }
 
-    if (variant.stock < cartQty) {
+    // Check available stock considering Redis reservations
+    const reservationKey = `stock:reservation:${productId}:${productVarient}`;
+    const reservedQty = await redisApp.get(reservationKey);
+    const totalReserved = reservedQty ? parseInt(reservedQty) : 0;
+    const availableStock = variant.stock - totalReserved;
+
+    if (availableStock < cartQty) {
       canProceed = false;
-      message = `Only ${variant.stock} left for ${product.name} (${productVarient})`;
+      message = `Only ${availableStock} available for ${product.name} (${productVarient}). ${totalReserved} items are currently reserved by other users.`;
       break;
     }
 

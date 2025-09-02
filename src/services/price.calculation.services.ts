@@ -69,7 +69,7 @@ export const calculateOrderPricing = async (
     freeDeliveryApplied,
     finalTotal: subtotal + deliveryFee,
     message: freeDeliveryApplied
-      ? `Free delivery applied (order above $${priceSetting.freeDeliveryThreshold})`
+      ? `Free delivery applied (order above ₹${priceSetting.freeDeliveryThreshold})`
       : deliveryFee > 0
       ? `Delivery fee: $${deliveryFee}`
       : "No delivery fee",
