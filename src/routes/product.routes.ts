@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { identifySessionUser } from "../middlewares/auth.middlewares";
 import {
+  getDeliverySettings,
   handleGetAllCategories,
   handleGetFilteredProducts,
   handleGetProductById,
@@ -10,11 +11,19 @@ import {
 import { handleGetAllBanner } from "../controllers/adminProduct.controller";
 const router = Router();
 
+//
+// PRODUCTS & CATEGORY
+//
+
 //get all the products
 router.get("/", identifySessionUser, handleGetFilteredProducts);
 
 //get all the category
 router.get("/categories", identifySessionUser, handleGetAllCategories);
+
+//
+// SEARCH
+//
 
 // Search with autocomplete
 router.get(
@@ -28,6 +37,11 @@ router.get("/search/popular", identifySessionUser, handlePopularSearches);
 
 // // 3. Related/Similar products
 // router.get("/:id/related", identifySessionUser, handleGetRelatedProducts);
+
+//
+// DELIVERY
+//
+router.get("/delivery", identifySessionUser, getDeliverySettings);
 
 //
 // BANNERS

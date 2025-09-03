@@ -1376,7 +1376,7 @@ export const checkProductsInCart = async (
 
     const productIds = productDatas.map((p) => p.productId);
 
-    // Fetch products and cart items from the database.
+    // Fetch products and cart items from the database
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds },
@@ -1393,9 +1393,7 @@ export const checkProductsInCart = async (
           where: { isMain: true },
           select: { imageUrl: true, altText: true },
         },
-        productSizes: {
-          select: { stockName: true, stock: true },
-        },
+        productSizes: true,
       },
     });
 
@@ -1419,6 +1417,25 @@ export const checkProductsInCart = async (
         cartMap.set(item.productId, new Map());
       }
       cartMap.get(item.productId)!.set(item.stockName, item);
+    });
+
+    // **NEW: Fetch Redis reservations for all products at once**
+    const reservationPromises = productDatas.map(
+      async ({ productId, productVarient }) => {
+        const key = `stock:reservation:${productId}:${productVarient}`;
+        const reserved = await redisApp.get(key);
+        return {
+          productId,
+          productVarient,
+          reservedQuantity: reserved ? parseInt(reserved) : 0,
+        };
+      }
+    );
+
+    const reservations = await Promise.all(reservationPromises);
+    const reservationMap = new Map<string, number>();
+    reservations.forEach(({ productId, productVarient, reservedQuantity }) => {
+      reservationMap.set(`${productId}:${productVarient}`, reservedQuantity);
     });
 
     // Preparing response data
@@ -1481,23 +1498,31 @@ export const checkProductsInCart = async (
         continue;
       }
 
-      const currentStock = variant.stock;
+      // **FIXED: Calculate available stock considering Redis reservations**
+      const dbStock = variant.stock;
+      const reservedQuantity =
+        reservationMap.get(`${productId}:${productVarient}`) || 0;
+      const availableStock = Math.max(0, dbStock - reservedQuantity);
       const cartQuantity = itemInCart.quantity;
       const itemTotal = cartQuantity * product.discountedPrice.toNumber();
 
       // Handle different stock scenarios
-      if (currentStock === 0) {
-        // Out of stock - show product but indicate removal needed
+      if (availableStock === 0) {
         hasOutOfStockItems = true;
         responseProducts.push({
           productId,
           status: "out_of_stock",
           statusCode: "OUT_OF_STOCK",
-          message: `This item is currently out of stock.`,
+          message:
+            reservedQuantity > 0
+              ? `This item is currently reserved by other customers and unavailable.`
+              : `This item is currently out of stock.`,
           action: "remove",
           canProceedToCheckout: false,
           stockInfo: {
             availableStock: 0,
+            dbStock,
+            reservedQuantity,
             cartQuantity,
             isOutOfStock: true,
             isLowStock: false,
@@ -1513,30 +1538,34 @@ export const checkProductsInCart = async (
             cartItemId: itemInCart.id,
             stockName: itemInCart.stockName,
             quantity: cartQuantity,
-            itemTotal: 0, // Don't count in total
+            itemTotal: 0,
           },
         });
         continue;
       }
 
-      if (cartQuantity > currentStock) {
-        // Quantity exceeds available stock
+      if (cartQuantity > availableStock) {
         hasQuantityIssues = true;
         responseProducts.push({
           productId,
           status: "quantity_exceeded",
           statusCode: "QUANTITY_EXCEEDED",
-          message: `Only ${currentStock} item${
-            currentStock === 1 ? "" : "s"
-          } available. Please reduce quantity to ${currentStock}.`,
+          message:
+            reservedQuantity > 0
+              ? `Only ${availableStock} available (${reservedQuantity} reserved by others). Please reduce quantity to ${availableStock}.`
+              : `Only ${availableStock} item${
+                  availableStock === 1 ? "" : "s"
+                } available. Please reduce quantity.`,
           action: "reduce_quantity",
           canProceedToCheckout: false,
           stockInfo: {
-            availableStock: currentStock,
+            availableStock,
+            dbStock,
+            reservedQuantity,
             cartQuantity,
-            maxAllowed: currentStock,
+            maxAllowed: availableStock,
             isOutOfStock: false,
-            isLowStock: currentStock < 10,
+            isLowStock: availableStock < 10,
           },
           productDetails: {
             id: product.id,
@@ -1549,14 +1578,15 @@ export const checkProductsInCart = async (
             cartItemId: itemInCart.id,
             stockName: itemInCart.stockName,
             quantity: cartQuantity,
-            itemTotal: currentStock * product.discountedPrice.toNumber(), // Calculate with max available
+            itemTotal: availableStock * product.discountedPrice.toNumber(),
           },
         });
         continue;
       }
 
-      if (currentStock < 10 && currentStock > 0) {
-        // Low stock warning but can proceed
+      // **IMPROVED: Better low stock detection**
+      const lowStockThreshold = 10;
+      if (availableStock <= lowStockThreshold && availableStock > 0) {
         hasLowStockWarnings = true;
         totalPrice += itemTotal;
         totalValidItems += 1;
@@ -1565,13 +1595,18 @@ export const checkProductsInCart = async (
           productId,
           status: "low_stock_warning",
           statusCode: "LOW_STOCK",
-          message: `Only ${currentStock} item${
-            currentStock === 1 ? "" : "s"
-          } left in stock!`,
+          message:
+            reservedQuantity > 0
+              ? `Only ${availableStock} available (${reservedQuantity} reserved by others). Hurry up!`
+              : `Only ${availableStock} item${
+                  availableStock === 1 ? "" : "s"
+                } left in stock!`,
           action: "proceed_with_caution",
           canProceedToCheckout: true,
           stockInfo: {
-            availableStock: currentStock,
+            availableStock,
+            dbStock,
+            reservedQuantity,
             cartQuantity,
             isOutOfStock: false,
             isLowStock: true,
@@ -1605,7 +1640,9 @@ export const checkProductsInCart = async (
         action: "proceed",
         canProceedToCheckout: true,
         stockInfo: {
-          availableStock: currentStock,
+          availableStock,
+          dbStock,
+          reservedQuantity,
           cartQuantity,
           isOutOfStock: false,
           isLowStock: false,
@@ -1639,7 +1676,7 @@ export const checkProductsInCart = async (
           "Some items are out of stock and others exceed available quantity. Please review your cart.";
       } else if (hasOutOfStockItems) {
         checkoutMessage =
-          "Some items in your cart are out of stock. Please remove them to continue.";
+          "Some items in your cart are out of stock or reserved by others. Please remove them to continue.";
       } else {
         checkoutMessage =
           "Some items exceed available stock. Please adjust quantities to continue.";
@@ -1650,9 +1687,10 @@ export const checkProductsInCart = async (
         "Some items have limited stock. Complete your purchase soon!";
     }
 
-    // Respond with comprehensive cart analysis
-    res.status(200).json({
+    // **IMPROVED: Add timestamp for cache management**
+    const responseData = {
       success: true,
+      timestamp: new Date().toISOString(),
       overallStatus,
       canProceedToCheckout,
       checkoutMessage,
@@ -1665,6 +1703,10 @@ export const checkProductsInCart = async (
         hasOutOfStockItems,
         hasLowStockWarnings,
         hasQuantityIssues,
+        totalReservedItems: reservations.reduce(
+          (sum, r) => sum + r.reservedQuantity,
+          0
+        ),
       },
       products: responseProducts,
       recommendations: {
@@ -1679,8 +1721,11 @@ export const checkProductsInCart = async (
         ).length,
         actionRequired: !canProceedToCheckout,
       },
-    });
+    };
+
+    res.status(200).json(responseData);
   } catch (err) {
+    console.error("Cart check error:", err);
     next(err);
   }
 };
@@ -1742,4 +1787,19 @@ export const checkDeliveryController = async (
   } catch (err) {
     next(err);
   }
+};
+
+//
+// DELIVERY
+//
+
+// get delivery settings
+export const getDeliverySettings = async (req: Request, res: Response) => {
+  const fetchedDeliverySettings = await prisma.priceSetting.findFirst({});
+
+  res.status(200).json({
+    success: true,
+    message: "fetched all banner successfully",
+    setting: fetchedDeliverySettings,
+  });
 };
