@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { deleteS3File } from "../services/s3.service";
 import { Prisma, OrderStatus } from "@prisma/client";
 import { ImageToDelete } from "../types/admin.product.types";
+import { redisApp } from "../config/redis";
 
 dotenv.config();
 
@@ -1022,12 +1023,31 @@ export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
       freeDeliveryThreshold,
       allowedZipCodes,
     },
+    select:{
+      id:true,
+      createdAt:true,
+      updatedAt:true,
+      takeDeliveryFee:true,
+      checkThreshold:true,
+      deliveryFee:true,
+      freeDeliveryThreshold:true,
+      allowedZipCodes:true,
+    }
   });
+
+  // update Redis cache
+  const key = `delivery:settings`;
+  await redisApp.set(
+    key,
+    JSON.stringify(priceDetails),
+    "EX",
+    60 * 60 // 30 minutes
+  );
 
   res.status(200).json({
     success: true,
-    message: "updated fee setting successfully",
-    priceSetting: priceDetails || [],
+    message: "Updated delivery settings successfully",
+    priceSetting: priceDetails,
   });
 };
 
@@ -1056,7 +1076,7 @@ export const handleAddBanner = async (req: Request, res: Response) => {
 // get banner
 export const handleGetAllBanner = async (req: Request, res: Response) => {
   const fetchedAllBanner = await prisma.banner.findMany({});
-  
+
   res.status(200).json({
     success: true,
     message: "fetched all banner successfully",
