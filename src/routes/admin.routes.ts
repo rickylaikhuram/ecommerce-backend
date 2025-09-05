@@ -29,6 +29,7 @@ import {
   handleGetAllUser,
   handleGetCategory,
   handleGetCustomer,
+  handleGetDashboardDetails,
   handleGetLowLevelCategories,
   handleGetOrderDetails,
   handleGetPriceSetting,
@@ -246,12 +247,7 @@ router.post(
   handleAddBanner
 );
 
-router.get(
-  "/banner",
-  identifySessionUser,
-  isAdmin,
-  handleGetAllBanner
-);
+router.get("/banner", identifySessionUser, isAdmin, handleGetAllBanner);
 
 router.put(
   "/banner/:id",
@@ -261,11 +257,17 @@ router.put(
   handleEditBanner
 );
 
-router.delete(
-  "/banner/:id",
+router.delete("/banner/:id", identifySessionUser, isAdmin, handleDeleteBanner);
+
+//
+// DASHBOARD
+//
+
+router.get(
+  "/dashboard",
   identifySessionUser,
   isAdmin,
-  handleDeleteBanner
+  handleGetDashboardDetails
 );
 
 export default router;

@@ -5,6 +5,13 @@ import { deleteS3File } from "../services/s3.service";
 import { Prisma, OrderStatus } from "@prisma/client";
 import { ImageToDelete } from "../types/admin.product.types";
 import { redisApp } from "../config/redis";
+import {
+  getMonthStart,
+  getTodayStart,
+  getWeekStart,
+  getYearStart,
+  toNumberSafe,
+} from "../utils/calculate.date.income";
 
 dotenv.config();
 
@@ -1183,4 +1190,139 @@ export const handleDeleteBanner = async (req: Request, res: Response) => {
       redirectUrl: deleted.redirectUrl,
     },
   });
+};
+
+//
+// DASHBOARD
+//
+
+// get dashboard
+export const handleGetDashboardDetails = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const DASHBOARD_CACHE_KEY = "dashboard:summary";
+    // 1. Check cache
+    const cached = await redisApp.get(DASHBOARD_CACHE_KEY);
+    if (cached) {
+      return res.status(200).json({
+        success: true,
+        message: "Fetched dashboard details (cached)",
+        data: JSON.parse(cached),
+      });
+    }
+
+    // 2. Dates
+    const today = getTodayStart();
+    const weekStart = getWeekStart();
+    const monthStart = getMonthStart();
+    const yearStart = getYearStart();
+
+    // 3. Queries
+    const getOrderCount = (from?: Date) =>
+      prisma.order.count({
+        where: {
+          status: { notIn: ["CANCELLED", "UNPLACED"] },
+          ...(from && { createdAt: { gte: from } }),
+        },
+      });
+
+    const getProductQuantity = (from?: Date) =>
+      prisma.orderItem.aggregate({
+        _sum: { quantity: true },
+        where: {
+          order: {
+            status: { notIn: ["CANCELLED", "UNPLACED"] },
+            ...(from && { createdAt: { gte: from } }),
+          },
+        },
+      });
+    const getRevenue = (from?: Date) =>
+      prisma.order.aggregate({
+        _sum: { totalAmount: true },
+        where: {
+          status: { notIn: ["CANCELLED", "UNPLACED"] },
+          ...(from && { createdAt: { gte: from } }),
+        },
+      });
+
+    // 4. Parallel fetch (counts, quantities, revenues)
+    const [
+      todayOrders,
+      weekOrders,
+      monthOrders,
+      yearOrders,
+      allOrders,
+      todayQtyAgg,
+      weekQtyAgg,
+      monthQtyAgg,
+      yearQtyAgg,
+      allQtyAgg,
+      todayRevAgg,
+      weekRevAgg,
+      monthRevAgg,
+      yearRevAgg,
+      allRevAgg,
+    ] = await Promise.all([
+      // counts
+      getOrderCount(today),
+      getOrderCount(weekStart),
+      getOrderCount(monthStart),
+      getOrderCount(yearStart),
+      getOrderCount(),
+
+      // quantities
+      getProductQuantity(today),
+      getProductQuantity(weekStart),
+      getProductQuantity(monthStart),
+      getProductQuantity(yearStart),
+      getProductQuantity(),
+
+      // revenues
+      getRevenue(today),
+      getRevenue(weekStart),
+      getRevenue(monthStart),
+      getRevenue(yearStart),
+      getRevenue(),
+    ]);
+
+    // 5. Build result (convert decimals / nulls safely)
+    const result = {
+      orders: {
+        today: todayOrders,
+        week: weekOrders,
+        month: monthOrders,
+        year: yearOrders,
+        allTime: allOrders,
+      },
+      productQuantity: {
+        today: toNumberSafe(todayQtyAgg?._sum?.quantity),
+        week: toNumberSafe(weekQtyAgg?._sum?.quantity),
+        month: toNumberSafe(monthQtyAgg?._sum?.quantity),
+        year: toNumberSafe(yearQtyAgg?._sum?.quantity),
+        allTime: toNumberSafe(allQtyAgg?._sum?.quantity),
+      },
+      revenue: {
+        // totalAmount is Decimal from Prisma; convert with toNumberSafe
+        today: toNumberSafe(todayRevAgg?._sum?.totalAmount),
+        week: toNumberSafe(weekRevAgg?._sum?.totalAmount),
+        month: toNumberSafe(monthRevAgg?._sum?.totalAmount),
+        year: toNumberSafe(yearRevAgg?._sum?.totalAmount),
+        allTime: toNumberSafe(allRevAgg?._sum?.totalAmount),
+      },
+    };
+
+    // 4. Save in Redis
+    await redisApp.set(DASHBOARD_CACHE_KEY, JSON.stringify(result), "EX", 300);
+
+    res.status(200).json({
+      success: true,
+      message: "Fetched dashboard details successfully",
+      data: result,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 };
