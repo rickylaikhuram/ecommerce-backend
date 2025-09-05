@@ -6,12 +6,14 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
   const { files, folderName } = req.body;
 
   if (!Array.isArray(files) || files.length === 0) {
-    res.status(400).json({ message: "No files provided" });
+    res.status(400).json({ success: false, message: "No files provided" });
     return;
   }
 
   if (files.length > 10) {
-    res.status(400).json({ message: "Maximum 10 images allowed" });
+    res
+      .status(400)
+      .json({ success: false, message: "Maximum 10 images allowed" });
     return;
   }
 
@@ -30,12 +32,13 @@ export const generateUploadUrl = async (req: Request, res: Response) => {
       })
     );
 
-
     res.json({ signedUrls: uploadDataArray });
     return;
   } catch (error) {
     console.error("Error generating presigned URLs:", error);
-    res.status(500).json({ message: "Failed to generate upload URLs" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to generate upload URLs" });
   }
 };
 

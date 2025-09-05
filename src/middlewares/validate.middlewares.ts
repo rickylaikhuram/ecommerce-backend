@@ -437,11 +437,14 @@ export const validateEditProductImages = (
   const result = editImagesSchema.safeParse(req.body);
 
   if (!result.success) {
-    res.status(400).json({
-      statusCode: 400,
-      message: "Invalid images format",
-      errors: result.error.flatten().fieldErrors,
-    });
+    res
+      .status(400)
+      .json({
+        success: false,
+        statusCode: 400,
+        message: "Invalid images format",
+        errors: result.error.flatten().fieldErrors,
+      });
     return;
   }
 
@@ -502,7 +505,7 @@ export const validatePriceSetting = (
   next: NextFunction
 ) => {
   const result = deliveryConfigSchema.safeParse(req.body);
-  
+
   if (!result.success) {
     throw {
       statusCode: 400,
@@ -572,7 +575,6 @@ export const adminEditBannerInputValidation = async (
     });
   }
 };
-
 
 //
 // USER RELATED VALIDATION ROUTES
@@ -663,7 +665,7 @@ export const validateAddressBody = (
   next: NextFunction
 ) => {
   const result = createAddressSchema.safeParse(req.body.address);
-console.log(req.body.address)
+  console.log(req.body.address);
   if (!result.success) {
     const formatted = result.error.flatten();
 

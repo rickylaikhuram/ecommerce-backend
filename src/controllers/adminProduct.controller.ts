@@ -126,6 +126,7 @@ export const handleEditCategory = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Category updated successfully",
     category: {
       id: updatedCategoryWithChildren!.id,
@@ -234,6 +235,7 @@ export const handleEditSubCategory = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Category updated successfully",
     category: {
       id: updatedCategoryWithParent!.id,
@@ -252,6 +254,7 @@ export const handleGetCategory = async (req: Request, res: Response) => {
   const allCategory = await prisma.category.findMany({});
 
   res.status(200).json({
+    success: true,
     message: "Get all Category successfully",
     category: allCategory,
   });
@@ -375,6 +378,7 @@ export const handleAddProduct = async (req: Request, res: Response) => {
   );
 
   res.status(200).json({
+    success: true,
     message: "Product created successfully",
     product: {
       name: result.name,
@@ -530,6 +534,7 @@ export const handleEditProduct = async (req: Request, res: Response) => {
   );
 
   res.status(200).json({
+    success: true,
     message: "Product updated successfully",
     product: {
       id: result.id,
@@ -582,6 +587,7 @@ export const handleGetAdmin = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched admins successfully",
     admins: allAdmin,
   });
@@ -617,6 +623,7 @@ export const handleGetAllUser = async (req: Request, res: Response) => {
   }));
 
   res.status(200).json({
+    success: true,
     message: "Fetched users successfully",
     users: formattedUsers,
   });
@@ -655,6 +662,7 @@ export const handleGetCustomer = async (req: Request, res: Response) => {
   }));
 
   res.status(200).json({
+    success: true,
     message: "Fetched customers successfully",
     customers: formattedCustomers,
   });
@@ -688,6 +696,7 @@ export const handleGetUser = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched users successfully",
     users: userDetails,
   });
@@ -720,6 +729,7 @@ export const handleGetUserOrders = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched user orders successfully",
     order: userOrderDetails?.orders || [],
   });
@@ -760,6 +770,7 @@ export const handleGetUserAddress = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched user address successfully",
     address: userAddressDetails?.addresses || [],
   });
@@ -804,6 +815,7 @@ export const handleGetUserWishlist = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched user wishlist successfully",
     wishlist: userWishlistDetails?.wishlistItems || [],
   });
@@ -848,6 +860,7 @@ export const handleGetUserCart = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched user cart successfully",
     cart: userCartDetails?.cartItems || [],
   });
@@ -874,6 +887,7 @@ export const handleGetAllOrders = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched all orders successfully",
     orders: allOrders,
   });
@@ -950,6 +964,7 @@ export const handleGetOrderDetails = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "Fetched user order details successfully",
     order: orderDetails || [],
   });
@@ -972,6 +987,7 @@ export const handleUpdateOrderStatus = async (req: Request, res: Response) => {
   });
 
   res.status(200).json({
+    success: true,
     message: "updated order status successfully",
     order: orderDetails || [],
   });
@@ -1023,16 +1039,16 @@ export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
       freeDeliveryThreshold,
       allowedZipCodes,
     },
-    select:{
-      id:true,
-      createdAt:true,
-      updatedAt:true,
-      takeDeliveryFee:true,
-      checkThreshold:true,
-      deliveryFee:true,
-      freeDeliveryThreshold:true,
-      allowedZipCodes:true,
-    }
+    select: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      takeDeliveryFee: true,
+      checkThreshold: true,
+      deliveryFee: true,
+      freeDeliveryThreshold: true,
+      allowedZipCodes: true,
+    },
   });
 
   // update Redis cache

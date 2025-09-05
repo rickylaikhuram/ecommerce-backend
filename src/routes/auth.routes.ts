@@ -26,10 +26,7 @@ const router = Router();
 
 //get current user
 router.get("/me", identifySessionUser, (req: AuthRequest, res) => {
-  res.status(200).json({
-    user: req.user,
-    token: req.token,
-  });
+  res.status(200).json({ success: true, user: req.user, token: req.token });
 });
 
 /* -------------------- SIGN UP -------------------- */
@@ -89,7 +86,7 @@ router.post(
   handleOtpForgotPasswordInitiate
 );
 
-// OTP  ||  FORGOT - PASSWORD: Step 2 - Verify OTP and Send Session ID 
+// OTP  ||  FORGOT - PASSWORD: Step 2 - Verify OTP and Send Session ID
 router.post(
   "/forgot-password/verify-otp",
   identifySessionUser,
@@ -111,7 +108,6 @@ router.post(
   validatePhone,
   handleOtpForgotPasswordResend
 );
-
 
 /* -------------------- LOGOUT -------------------- */
 

@@ -85,6 +85,7 @@ export const handleGettingUserProfile = async (
     }
 
     res.status(200).json({
+      success: true,
       message: "Get User Sucessfully",
       user,
     });
@@ -127,6 +128,7 @@ export const handleUserName = async (
     });
 
     res.status(200).json({
+      success: true,
       message: "Name changed successfully",
       user: updatedUser,
     });
@@ -184,7 +186,9 @@ export const updateEmailVerify = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP sent to your phone no." });
+    res
+      .status(200)
+      .json({ success: true, message: "OTP sent to your phone no." });
     return;
   } catch (err) {
     next(err);
@@ -246,9 +250,11 @@ export const updateEmailVeried = async (
         createdAt: true,
       },
     });
-    res
-      .status(200)
-      .json({ message: "Email Updated Successfully", user: updatedUser });
+    res.status(200).json({
+      success: true,
+      message: "Email Updated Successfully",
+      user: updatedUser,
+    });
     return;
   } catch (err) {
     next(err);
@@ -304,7 +310,9 @@ export const updatePhoneVerify = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP sent to your new phone no." });
+    res
+      .status(200)
+      .json({ success: true, message: "OTP sent to your new phone no." });
     return;
   } catch (err) {
     next(err);
@@ -366,9 +374,11 @@ export const updatePhoneVeried = async (
         createdAt: true,
       },
     });
-    res
-      .status(200)
-      .json({ message: "Phone Updated Successfully", user: updatedUser });
+    res.status(200).json({
+      success: true,
+      message: "Phone Updated Successfully",
+      user: updatedUser,
+    });
     return;
   } catch (err) {
     next(err);
@@ -413,9 +423,11 @@ export const changePassword = async (
         createdAt: true,
       },
     });
-    res
-      .status(200)
-      .json({ message: "Password Changed Successfully", user: updatedUser });
+    res.status(200).json({
+      success: true,
+      message: "Password Changed Successfully",
+      user: updatedUser,
+    });
     return;
   } catch (err) {
     next(err);
@@ -437,7 +449,7 @@ export const handleToggleWishlist = async (
     const uid = req.user?.uid;
 
     if (!uid) {
-      res.status(401).json({ message: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
@@ -451,7 +463,11 @@ export const handleToggleWishlist = async (
         where: { id: existing.id },
       });
 
-      res.status(200).json({ message: "Removed from wishlist", removed: true });
+      res.status(200).json({
+        success: true,
+        message: "Removed from wishlist",
+        removed: true,
+      });
       return;
     } else {
       // Add to wishlist
@@ -459,9 +475,12 @@ export const handleToggleWishlist = async (
         data: { userId: uid, productId },
       });
 
-      res
-        .status(200)
-        .json({ message: "Added to wishlist", wishlist, removed: false });
+      res.status(200).json({
+        success: true,
+        message: "Added to wishlist",
+        wishlist,
+        removed: false,
+      });
       return;
     }
   } catch (err) {
@@ -485,7 +504,7 @@ export const getWishlistedProductIds = async (
 
     const wishlistedIds = items.map((item) => item.productId);
 
-    res.status(200).json({ wishlistedIds });
+    res.status(200).json({ success: true, wishlistedIds });
   } catch (error) {
     next(error);
   }
@@ -544,7 +563,7 @@ export const getWishlist = async (
       };
     });
 
-    res.status(200).json({ products });
+    res.status(200).json({ success: true, products });
   } catch (error) {
     next(error);
   }
@@ -621,6 +640,7 @@ export const createAddress = async (
     });
 
     res.status(201).json({
+      success: true,
       message: "Address created successfully",
       address: result,
     });
@@ -650,6 +670,7 @@ export const getAllAddresses = async (
     });
 
     res.status(200).json({
+      success: true,
       message: "Addresses fetched successfully",
       addresses,
     });
@@ -726,6 +747,7 @@ export const putEditAddress = async (
     });
 
     res.status(200).json({
+      success: true,
       message: "Address updated successfully",
       address: result,
     });
@@ -773,9 +795,9 @@ export const patchIsDefaultAddress = async (
       }),
     ]);
 
-    res.status(200).json({
-      message: "Default address updated successfully",
-    });
+    res
+      .status(200)
+      .json({ success: true, message: "Default address updated successfully" });
   } catch (err) {
     next(err);
   }
@@ -813,9 +835,9 @@ export const deleteAddress = async (
       where: { id: addressId },
     });
 
-    res.status(200).json({
-      message: "Address deleted successfully",
-    });
+    res
+      .status(200)
+      .json({ success: true, message: "Address deleted successfully" });
   } catch (err) {
     next(err);
   }
@@ -833,8 +855,8 @@ export const upiQrPaymentController = async (
 ) => {
   try {
     const { order, pricingResult, reservedItems } =
-      await createOrderWithPaymentMethod(req, 'UPI');
-    
+      await createOrderWithPaymentMethod(req, "UPI");
+
     // 1. Generate unique verification token (remark1)
     const verificationToken = crypto.randomBytes(16).toString("hex");
 
@@ -886,8 +908,10 @@ export const cashOnDeliveryController = async (
   next: NextFunction
 ) => {
   try {
-    const { order, pricingResult } =
-      await createOrderWithPaymentMethod(req, 'COD');
+    const { order, pricingResult } = await createOrderWithPaymentMethod(
+      req,
+      "COD"
+    );
 
     // Create payment record in DB
     await prisma.payment.create({
@@ -903,7 +927,8 @@ export const cashOnDeliveryController = async (
       success: true,
       orderId: order.id,
       amount: pricingResult.finalTotal,
-      message: "Order placed successfully. Payment will be collected on delivery.",
+      message:
+        "Order placed successfully. Payment will be collected on delivery.",
     });
   } catch (err) {
     next(err);

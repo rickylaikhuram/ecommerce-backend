@@ -53,7 +53,7 @@ export const handleUserSignUpVerify = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP sent to your phone" });
+    res.status(200).json({ success: true, message: "OTP sent to your phone" });
   } catch (err) {
     next(err);
   }
@@ -106,7 +106,7 @@ export const handleResendSignupOtp = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP resent successfully" });
+    res.status(200).json({ success: true, message: "OTP resent successfully" });
   } catch (err) {
     next(err);
   }
@@ -190,6 +190,7 @@ export const handleVerifiedUserSignup = async (
         maxAge: 5 * 24 * 60 * 60 * 1000,
       })
       .json({
+        success: true,
         message: "Signup successful",
         token,
         user: { id: user.id, email: user.email, name: user.name },
@@ -253,6 +254,7 @@ export const handleUserSignin = async (
         maxAge: 5 * 24 * 60 * 60 * 1000,
       })
       .json({
+        success: true,
         message: "Signin successful",
         token,
         user: {
@@ -293,7 +295,7 @@ export const handleOtpSigninInitiate = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP sent successfully" });
+    res.status(200).json({ success: true, message: "OTP sent successfully" });
   } catch (err) {
     next(err);
   }
@@ -354,6 +356,7 @@ export const handleUserSigninWithOtp = async (
         maxAge: 5 * 24 * 60 * 60 * 1000,
       })
       .json({
+        success: true,
         message: "Signin successful",
         token,
         user: {
@@ -394,7 +397,9 @@ export const handleOtpForgotPasswordInitiate = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP sent successfully to your Phone" });
+    res
+      .status(200)
+      .json({ success: true, message: "OTP sent successfully to your Phone" });
   } catch (err) {
     next(err);
   }
@@ -446,7 +451,7 @@ export const handleOtpForgotPasswordResend = async (
       throw error;
     }
 
-    res.status(200).json({ message: "OTP resent successfully" });
+    res.status(200).json({ success: true, message: "OTP resent successfully" });
   } catch (err) {
     next(err);
   }
@@ -487,6 +492,7 @@ export const handleOtpForgotPasswordVerify = async (
     await redisOtp.del(redisOtpKey);
 
     res.status(200).json({
+      success: true,
       message: "Otp verified change your password in 10 mins",
       resetToken: uid,
     });
@@ -531,7 +537,7 @@ export const handleResetForgotPassword = async (
       newPassword,
       existingUser.password
     );
-    
+
     if (isSamePassword) {
       const error = new Error(
         "New password cannot be the same as the old password"
@@ -557,7 +563,8 @@ export const handleResetForgotPassword = async (
     await redisOtp.del(sessionKey);
 
     res.status(200).json({
-      message: "password updated successfully",
+      success: true,
+      message: "Password updated successfully",
       user: updatedUser.id,
     });
   } catch (err) {
@@ -571,6 +578,6 @@ export const logoutUser = (req: Request, res: Response) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   });
-  res.status(200).json({ message: "Logged out" });
+  res.status(200).json({ success: true, message: "Logged out" });
   return;
 };

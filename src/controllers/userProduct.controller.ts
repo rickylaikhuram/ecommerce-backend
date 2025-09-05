@@ -22,6 +22,7 @@ export const handleSearchAutocomplete = async (
     // Validate query parameter
     if (!q || typeof q !== "string") {
       res.status(400).json({
+        success: false,
         message: 'Query parameter "q" is required and must be a string',
         suggestions: [],
       });
@@ -32,10 +33,9 @@ export const handleSearchAutocomplete = async (
 
     // Return empty results for very short queries to avoid too many results
     if (query.length < 2) {
-      res.status(200).json({
-        message: "Query too short",
-        suggestions: [],
-      });
+      res
+        .status(200)
+        .json({ success: true, message: "Query too short", suggestions: [] });
       return;
     }
 
@@ -43,6 +43,7 @@ export const handleSearchAutocomplete = async (
     const searchLimit = limit ? parseInt(limit as string) : 6;
     if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 8) {
       res.status(400).json({
+        success: false,
         message: "Invalid limit parameter. Must be between 1 and 8.",
         suggestions: [],
       });
@@ -231,6 +232,7 @@ export const handleSearchAutocomplete = async (
     });
 
     res.status(200).json({
+      success: true,
       message: `Found ${sortedResults.length} suggestions for "${query}"`,
       query: query,
       suggestions: sortedResults.slice(0, searchLimit),
@@ -239,6 +241,7 @@ export const handleSearchAutocomplete = async (
   } catch (error) {
     console.error("Search autocomplete error:", error);
     res.status(500).json({
+      success: false,
       message: "Internal server error during search",
       suggestions: [],
     });
@@ -257,6 +260,7 @@ export const handlePopularSearches = async (
 
     if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 6) {
       res.status(400).json({
+        success: false,
         message: "Invalid limit parameter. Must be between 1 and 6.",
         suggestions: [],
       });
@@ -320,6 +324,7 @@ export const handlePopularSearches = async (
     ];
 
     res.status(200).json({
+      success: true,
       message: "Popular search suggestions",
       suggestions: suggestions.slice(0, searchLimit),
     });
@@ -327,6 +332,7 @@ export const handlePopularSearches = async (
   } catch (error) {
     console.error("Popular searches error:", error);
     res.status(500).json({
+      success: false,
       message: "Internal server error",
       suggestions: [],
     });
@@ -624,6 +630,7 @@ export const handleGetFilteredProducts = async (
   // Validate pagination parameters
   if (take && (isNaN(take) || take < 1 || take > 100)) {
     res.status(400).json({
+      success: false,
       message: "Invalid limit parameter. Must be between 1 and 100.",
     });
     return;
@@ -631,6 +638,7 @@ export const handleGetFilteredProducts = async (
 
   if (skip && (isNaN(skip) || skip < 0)) {
     res.status(400).json({
+      success: false,
       message: "Invalid offset parameter. Must be 0 or greater.",
     });
     return;
@@ -714,6 +722,7 @@ export const handleGetFilteredProducts = async (
   }
 
   res.status(200).json({
+    success: true,
     message,
     products,
     pagination: {
@@ -751,7 +760,7 @@ export const handleGetProductById = async (req: Request, res: Response) => {
   });
 
   if (!product) {
-    res.status(404).json({ message: "Product not found" });
+    res.status(404).json({ success: false, message: "Product not found" });
     return;
   }
 
@@ -777,7 +786,7 @@ export const handleGetProductById = async (req: Request, res: Response) => {
     data: { views: { increment: 1 } },
   });
 
-  res.json({ product });
+  res.json({ success: true, product });
 };
 
 // check a product exist or not
@@ -866,11 +875,11 @@ export const handleGetAllCategories = async (
     const filtered = filterCategories(categories);
 
     if (filtered.length === 0) {
-      res.status(404).json({ message: "Categories not found" });
+      res.status(404).json({ success: false, message: "Categories not found" });
       return;
     }
 
-    res.json({ categories: filtered });
+    res.json({ success: true, categories: filtered });
   } catch (error) {
     next(error);
   }
@@ -1150,10 +1159,7 @@ export const getCart = async (
       lastChecked: new Date().toISOString(),
     };
 
-    res.status(200).json({
-      items,
-      summary,
-    });
+    res.status(200).json({ success: true, items, summary });
   } catch (error) {
     console.error("Get cart error:", error);
     next(error);
@@ -1412,6 +1418,7 @@ export const clearCart = async (
     }
 
     res.status(200).json({
+      success: true,
       items: [],
       summary: {
         totalItems: 0,
@@ -1816,9 +1823,7 @@ export const getCartCount = async (
       _sum: { quantity: true },
     });
 
-    res.status(200).json({
-      count: count._sum.quantity || 0,
-    });
+    res.status(200).json({ success: true, count: count._sum.quantity || 0 });
   } catch (error) {
     next(error);
   }
