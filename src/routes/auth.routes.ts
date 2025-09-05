@@ -14,6 +14,10 @@ import {
   handleOtpSigninInitiate,
   handleUserSigninWithOtp,
   logoutUser,
+  handleOtpForgotPasswordInitiate,
+  handleOtpForgotPasswordVerify,
+  handleOtpForgotPasswordResend,
+  handleResetForgotPassword,
 } from "../controllers/auth.controller";
 import { identifySessionUser } from "../middlewares/auth.middlewares";
 import { AuthRequest } from "../types/customTypes";
@@ -74,6 +78,40 @@ router.post(
   validateOtpInput,
   handleUserSigninWithOtp
 );
+
+/* -------------------- FORGOT - PASSWORD -------------------- */
+
+// OTP  ||  FORGOT - PASSWORD: Step 1 - Send OTP IF USER EXIST
+router.post(
+  "/forgot-password/initiate",
+  identifySessionUser,
+  validatePhone,
+  handleOtpForgotPasswordInitiate
+);
+
+// OTP  ||  FORGOT - PASSWORD: Step 2 - Verify OTP and Send Session ID 
+router.post(
+  "/forgot-password/verify-otp",
+  identifySessionUser,
+  validateOtpInput,
+  handleOtpForgotPasswordVerify
+);
+
+// OTP  ||  FORGOT - PASSWORD: Step 3 - Update Password
+router.post(
+  "/forgot-password/reset",
+  identifySessionUser,
+  handleResetForgotPassword
+);
+
+// OTP  ||  FORGOT - PASSWORD: Step 4 - Resend OTP
+router.post(
+  "/forgot-password/resend",
+  identifySessionUser,
+  validatePhone,
+  handleOtpForgotPasswordResend
+);
+
 
 /* -------------------- LOGOUT -------------------- */
 

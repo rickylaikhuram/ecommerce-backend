@@ -4,11 +4,16 @@ import dotenv from "dotenv";
 import { generateToken } from "../utils/tokens";
 import { AuthRequest } from "../types/customTypes";
 import { mergeGuestCart } from "../services/guest.cart.services";
-import { findUserByEmail, findUserByPhone } from "../services/user.service";
+import {
+  findUserByEmail,
+  findUserById,
+  findUserByPhone,
+} from "../services/user.service";
 import { redisOtp } from "../config/redis";
 import { generateOTP } from "../utils/otp";
 import { sendOtpSms } from "../services/otp.service";
 import prisma from "../config/prisma";
+import { passwordSchema } from "../utils/inputValidation";
 
 dotenv.config();
 
@@ -80,6 +85,16 @@ export const handleResendSignupOtp = async (
     }
 
     await redisOtp.set(redisUserKey, userDataRaw, "EX", 360);
+
+    // Prevent spamming
+    const resendKey = `signup:otp:resend:${phone}`;
+    const canResend = await redisOtp.get(resendKey);
+    if (canResend) {
+      const error = new Error("Please wait before resending OTP.") as any;
+      error.statusCode = 429;
+      throw error;
+    }
+    await redisOtp.set(resendKey, "1", "EX", 60); // 60s cooldown
 
     const newOtp = generateOTP();
     await redisOtp.set(`otp:${phone}`, newOtp, "EX", 300);
@@ -348,6 +363,203 @@ export const handleUserSigninWithOtp = async (
           role: existingUser.isAdmin ? "admin" : "user",
         },
       });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// initiate forgot password OTP
+export const handleOtpForgotPasswordInitiate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone } = req.body;
+
+    const existingUser = await findUserByPhone(phone);
+    if (!existingUser) {
+      const error = new Error("No account found with this phone.") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const otp = generateOTP();
+    await redisOtp.set(`reset:otp:${phone}`, otp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, otp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP. Please try again.") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    res.status(200).json({ message: "OTP sent successfully to your Phone" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// resend forgot password OTP
+export const handleOtpForgotPasswordResend = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      const error = new Error("Phone number is required") as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const redisUserKey = `reset:otp:${phone}`;
+    const forgotPasswordOtp = await redisOtp.get(redisUserKey);
+
+    if (!forgotPasswordOtp) {
+      const error = new Error(
+        "OTP session expired. Please request again."
+      ) as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    // Prevent spamming
+    const resendKey = `reset:otp:resend:${phone}`;
+    const canResend = await redisOtp.get(resendKey);
+    if (canResend) {
+      const error = new Error("Please wait before resending OTP.") as any;
+      error.statusCode = 429;
+      throw error;
+    }
+    await redisOtp.set(resendKey, "1", "EX", 60); // 60s cooldown
+
+    // Generate and replace OTP
+    const newOtp = generateOTP();
+    await redisOtp.set(redisUserKey, newOtp, "EX", 300);
+
+    const sent = await sendOtpSms(phone, newOtp);
+    if (!sent) {
+      const error = new Error("Failed to send OTP") as any;
+      error.statusCode = 500;
+      throw error;
+    }
+
+    res.status(200).json({ message: "OTP resent successfully" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// verify forgot password OTP and respond with sessionid
+export const handleOtpForgotPasswordVerify = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { phone, otp } = req.body;
+    const uid = req.user;
+
+    const redisOtpKey = `reset:otp:${phone}`;
+    const storedOtp = await redisOtp.get(redisOtpKey);
+
+    if (!storedOtp) {
+      const error = new Error("OTP expired or not found") as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    if (storedOtp !== otp) {
+      const error = new Error("Invalid OTP") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const existingUser = await findUserByPhone(phone);
+    if (!existingUser) {
+      const error = new Error("No account found with this phone.") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+    await redisOtp.set(`reset:session:${uid}`, existingUser.id, "EX", 600);
+    await redisOtp.del(redisOtpKey);
+
+    res.status(200).json({
+      message: "Otp verified change your password in 10 mins",
+      resetToken: uid,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// verify sessionid and update password
+export const handleResetForgotPassword = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { newPassword, resetToken } = req.body;
+
+    if (!newPassword || !resetToken) {
+      const error = new Error("Need Password or Session ID") as any;
+      error.statusCode = 410;
+      throw error;
+    }
+    const checkedPassword = passwordSchema.safeParse(newPassword);
+
+    const sessionKey = `reset:session:${resetToken}`;
+    const sessionData = await redisOtp.get(sessionKey);
+
+    if (!sessionData) {
+      const error = new Error("OTP expired or not found") as any;
+      error.statusCode = 410;
+      throw error;
+    }
+
+    const existingUser = await findUserById(sessionData);
+
+    if (!existingUser) {
+      const error = new Error("User Not Found.") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+    const isSamePassword = await comparePassword(
+      newPassword,
+      existingUser.password
+    );
+    
+    if (isSamePassword) {
+      const error = new Error(
+        "New password cannot be the same as the old password"
+      ) as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const salt = await generateSalt(10);
+    const hashedPassword = await hashPassword(checkedPassword.data!, salt);
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: existingUser.id,
+      },
+      data: {
+        password: hashedPassword,
+        salt,
+      },
+      select: {
+        id: true,
+      },
+    });
+    await redisOtp.del(sessionKey);
+
+    res.status(200).json({
+      message: "password updated successfully",
+      user: updatedUser.id,
+    });
   } catch (err) {
     next(err);
   }
