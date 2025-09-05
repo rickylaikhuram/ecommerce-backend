@@ -21,11 +21,13 @@ export const handleSearchAutocomplete = async (
 
     // Validate query parameter
     if (!q || typeof q !== "string") {
-      res.status(400).json({
-        success: false,
-        message: 'Query parameter "q" is required and must be a string',
-        suggestions: [],
-      });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: 'Query parameter "q" is required and must be a string',
+          suggestions: [],
+        });
       return;
     }
 
@@ -42,11 +44,13 @@ export const handleSearchAutocomplete = async (
     // Parse limit with default and validation (UI-friendly limits)
     const searchLimit = limit ? parseInt(limit as string) : 6;
     if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 8) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid limit parameter. Must be between 1 and 8.",
-        suggestions: [],
-      });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid limit parameter. Must be between 1 and 8.",
+          suggestions: [],
+        });
       return;
     }
 
@@ -259,11 +263,13 @@ export const handlePopularSearches = async (
     const searchLimit = limit ? parseInt(limit as string) : 5; // Default to 5 for popular
 
     if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 6) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid limit parameter. Must be between 1 and 6.",
-        suggestions: [],
-      });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid limit parameter. Must be between 1 and 6.",
+          suggestions: [],
+        });
       return;
     }
 
@@ -629,18 +635,22 @@ export const handleGetFilteredProducts = async (
 
   // Validate pagination parameters
   if (take && (isNaN(take) || take < 1 || take > 100)) {
-    res.status(400).json({
-      success: false,
-      message: "Invalid limit parameter. Must be between 1 and 100.",
-    });
+    res
+      .status(400)
+      .json({
+        success: false,
+        message: "Invalid limit parameter. Must be between 1 and 100.",
+      });
     return;
   }
 
   if (skip && (isNaN(skip) || skip < 0)) {
-    res.status(400).json({
-      success: false,
-      message: "Invalid offset parameter. Must be 0 or greater.",
-    });
+    res
+      .status(400)
+      .json({
+        success: false,
+        message: "Invalid offset parameter. Must be 0 or greater.",
+      });
     return;
   }
 
@@ -1514,7 +1524,8 @@ export const checkProductsInCart = async (
     // Preparing response data
     const responseProducts: any[] = [];
     let totalValidItems = 0;
-    let totalPrice = 0;
+    let totalDiscountedPrice = 0;
+    let totalOriginalPrice = 0;
     let hasOutOfStockItems = false;
     let hasLowStockWarnings = false;
     let hasQuantityIssues = false;
@@ -1577,7 +1588,8 @@ export const checkProductsInCart = async (
         reservationMap.get(`${productId}:${productVarient}`) || 0;
       const availableStock = Math.max(0, dbStock - reservedQuantity);
       const cartQuantity = itemInCart.quantity;
-      const itemTotal = cartQuantity * product.discountedPrice.toNumber();
+      const itemDiscountedTotal = cartQuantity * product.discountedPrice.toNumber();
+      const itemOriginalTotal = cartQuantity * product.originalPrice.toNumber();
 
       // Handle different stock scenarios
       if (availableStock === 0) {
@@ -1661,7 +1673,8 @@ export const checkProductsInCart = async (
       const lowStockThreshold = 10;
       if (availableStock <= lowStockThreshold && availableStock > 0) {
         hasLowStockWarnings = true;
-        totalPrice += itemTotal;
+        totalDiscountedPrice += itemDiscountedTotal;
+        totalOriginalPrice += itemOriginalTotal;
         totalValidItems += 1;
 
         responseProducts.push({
@@ -1695,14 +1708,16 @@ export const checkProductsInCart = async (
             cartItemId: itemInCart.id,
             stockName: itemInCart.stockName,
             quantity: cartQuantity,
-            itemTotal,
+            itemDiscountedTotal,
+            itemOriginalTotal
           },
         });
         continue;
       }
 
       // All good - normal stock levels
-      totalPrice += itemTotal;
+      totalDiscountedPrice += itemDiscountedTotal;
+      totalOriginalPrice += itemOriginalTotal;
       totalValidItems += 1;
 
       responseProducts.push({
@@ -1731,7 +1746,7 @@ export const checkProductsInCart = async (
           cartItemId: itemInCart.id,
           stockName: itemInCart.stockName,
           quantity: cartQuantity,
-          itemTotal,
+          itemDiscountedTotal,
         },
       });
     }
@@ -1769,7 +1784,8 @@ export const checkProductsInCart = async (
       checkoutMessage,
       cartSummary: {
         totalValidItems,
-        totalPrice,
+        totalDiscountedPrice,
+        totalOriginalPrice,
         itemsRequiringAttention: responseProducts.filter(
           (p) => !p.canProceedToCheckout
         ).length,
