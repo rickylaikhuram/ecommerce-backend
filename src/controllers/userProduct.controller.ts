@@ -21,13 +21,11 @@ export const handleSearchAutocomplete = async (
 
     // Validate query parameter
     if (!q || typeof q !== "string") {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: 'Query parameter "q" is required and must be a string',
-          suggestions: [],
-        });
+      res.status(400).json({
+        success: false,
+        message: 'Query parameter "q" is required and must be a string',
+        suggestions: [],
+      });
       return;
     }
 
@@ -44,13 +42,11 @@ export const handleSearchAutocomplete = async (
     // Parse limit with default and validation (UI-friendly limits)
     const searchLimit = limit ? parseInt(limit as string) : 6;
     if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 8) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Invalid limit parameter. Must be between 1 and 8.",
-          suggestions: [],
-        });
+      res.status(400).json({
+        success: false,
+        message: "Invalid limit parameter. Must be between 1 and 8.",
+        suggestions: [],
+      });
       return;
     }
 
@@ -263,13 +259,11 @@ export const handlePopularSearches = async (
     const searchLimit = limit ? parseInt(limit as string) : 5; // Default to 5 for popular
 
     if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 6) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Invalid limit parameter. Must be between 1 and 6.",
-          suggestions: [],
-        });
+      res.status(400).json({
+        success: false,
+        message: "Invalid limit parameter. Must be between 1 and 6.",
+        suggestions: [],
+      });
       return;
     }
 
@@ -352,8 +346,16 @@ export const handleGetFilteredProducts = async (
   res: Response
 ) => {
   // Extract query parameters
-  const { category, sortBy, limit, offset, filter, period, search, status } =
-    req.query;
+  const {
+    category,
+    sortBy,
+    limit = 20,
+    page = 1, // Changed from offset to page
+    filter,
+    period,
+    search,
+    status,
+  } = req.query;
   // Handle sizes parameter (axios sends arrays as 'sizes[]')
   const sizes = req.query.sizes || req.query["sizes[]"];
 
@@ -630,35 +632,44 @@ export const handleGetFilteredProducts = async (
   }
 
   // Parse pagination parameters
-  const take = limit ? parseInt(limit as string) : undefined;
-  const skip = offset ? parseInt(offset as string) : undefined;
+  const itemsPerPage = limit ? parseInt(limit as string) : 20;
+  const currentPage = page ? parseInt(page as string) : 1;
 
   // Validate pagination parameters
-  if (take && (isNaN(take) || take < 1 || take > 100)) {
-    res
-      .status(400)
-      .json({
-        success: false,
-        message: "Invalid limit parameter. Must be between 1 and 100.",
-      });
+  if (isNaN(itemsPerPage) || itemsPerPage < 1 || itemsPerPage > 100) {
+    res.status(400).json({
+      success: false,
+      message: "Invalid limit parameter. Must be between 1 and 100.",
+    });
     return;
   }
 
-  if (skip && (isNaN(skip) || skip < 0)) {
-    res
-      .status(400)
-      .json({
-        success: false,
-        message: "Invalid offset parameter. Must be 0 or greater.",
-      });
+  if (isNaN(currentPage) || currentPage < 1) {
+    res.status(400).json({
+      success: false,
+      message: "Invalid page parameter. Must be 1 or greater.",
+    });
     return;
   }
+
+  // Calculate skip value based on page number
+  const skip = (currentPage - 1) * itemsPerPage;
+
+  // Get total count for pagination info
+  const totalCount = await prisma.product.count({
+    where: whereClause,
+  });
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  const hasMore = currentPage < totalPages;
+  const hasPrevious = currentPage > 1;
 
   // Fetch products
   const products = await prisma.product.findMany({
     where: whereClause,
     orderBy: orderByClause,
-    take: take,
+    take: itemsPerPage,
     skip: skip,
     select: {
       id: true,
@@ -698,11 +709,6 @@ export const handleGetFilteredProducts = async (
     },
   });
 
-  // Get total count for pagination info
-  const totalCount = await prisma.product.count({
-    where: whereClause,
-  });
-
   // Build response message
   let message = "Fetched products successfully";
 
@@ -736,10 +742,15 @@ export const handleGetFilteredProducts = async (
     message,
     products,
     pagination: {
-      total: totalCount,
-      limit: take ?? 20,
-      offset: skip || 0,
-      hasMore: skip && take ? skip + take < totalCount : false,
+      currentPage: currentPage,
+      totalPages: totalPages,
+      totalCount: totalCount,
+      itemsPerPage: itemsPerPage,
+      hasMore: hasMore,
+      hasPrevious: hasPrevious,
+      // Range information for current page
+      startItem: skip + 1,
+      endItem: Math.min(skip + itemsPerPage, totalCount),
     },
     // Include search term in response for frontend reference
     ...(search && { searchTerm: search }),
@@ -1588,7 +1599,8 @@ export const checkProductsInCart = async (
         reservationMap.get(`${productId}:${productVarient}`) || 0;
       const availableStock = Math.max(0, dbStock - reservedQuantity);
       const cartQuantity = itemInCart.quantity;
-      const itemDiscountedTotal = cartQuantity * product.discountedPrice.toNumber();
+      const itemDiscountedTotal =
+        cartQuantity * product.discountedPrice.toNumber();
       const itemOriginalTotal = cartQuantity * product.originalPrice.toNumber();
 
       // Handle different stock scenarios
@@ -1709,7 +1721,7 @@ export const checkProductsInCart = async (
             stockName: itemInCart.stockName,
             quantity: cartQuantity,
             itemDiscountedTotal,
-            itemOriginalTotal
+            itemOriginalTotal,
           },
         });
         continue;
