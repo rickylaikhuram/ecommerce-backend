@@ -11,8 +11,8 @@ async function main() {
       data: {
         takeDeliveryFee: true,
         checkThreshold: true,
-        deliveryFee: 5.0,
-        freeDeliveryThreshold: 50.0,
+        deliveryFee: 50.0,
+        freeDeliveryThreshold: 500.0,
         allowedZipCodes: [],
         isActive: true,
       },

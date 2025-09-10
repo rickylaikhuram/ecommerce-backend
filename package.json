@@ -4,26 +4,25 @@
   "description": "an e-commerce website backend",
   "main": "index.js",
   "prisma": {
-    "seed": "ts-node prisma/seed.js"
+    "seed": "node prisma/seed.js"
   },
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
-    "build": "npx prisma generate && tsc",
-    "start": "npx prisma db push && node dist/index.js",
-    "db:seed": "npx prisma db seed",
-    "db:reset": "npx prisma migrate reset && npx prisma db seed",
-    "postinstall": "npx prisma generate"
+    "build": "tsc && npx prisma generate",
+    "db:prod": "npx prisma migrate deploy && npx prisma db seed",
+    "start": "npm run db:prod && node dist/index.js",
+    "db:reset": "npx prisma migrate reset && npx prisma db seed"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rickylyxon/ecommerce-backend.git"
+    "url": "git+https://github.com/rickylaikhuram/ecommerce-backend.git"
   },
   "author": "Ricky Laikhuram",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/rickylyxon/ecommerce-backend/issues"
+    "url": "https://github.com/rickylaikhuram/ecommerce-backend/issues"
   },
-  "homepage": "https://github.com/rickylyxon/ecommerce-backend#readme",
+  "homepage": "https://github.com/rickylaikhuram/ecommerce-backend#readme",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",
     "@aws-sdk/s3-request-presigner": "^3.873.0",
