@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   nginx:
@@ -21,6 +21,19 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: ecom_postgres
+    restart: unless-stopped
+    env_file:
+      - deployment/.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecom_network
+    ports:
+      - "5432:5432"
 
   app:
     image: rickylyxon/ecom_clover:latest
@@ -49,3 +62,9 @@ networks:
 volumes:
   nginx_logs:
     driver: local
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/postgres_data
