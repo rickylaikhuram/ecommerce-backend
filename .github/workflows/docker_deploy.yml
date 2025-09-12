@@ -65,23 +65,23 @@ jobs:
             cd /home/${{ secrets.EC2_USER }}/app
 
             # Login to Docker Hub
-            echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login --username "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+            echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | sudo docker login --username "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
             # Pull latest image
-            docker pull ${{ env.DOCKER_IMAGE }}:latest
+            sudo docker pull ${{ env.DOCKER_IMAGE }}:latest
 
             # Stop existing containers
-            docker-compose -f docker-compose.prod.yml down || true
+            sudo docker-compose -f docker-compose.prod.yml down || true
 
             # Start new containers
-            docker-compose -f docker-compose.prod.yml up -d
+            sudo docker-compose -f docker-compose.prod.yml up -d
 
             # Clean up old images
-            docker image prune -f
+            sudo docker image prune -f
 
             # Verify deployment
             sleep 15
-            docker-compose -f docker-compose.prod.yml ps
+            sudo docker-compose -f docker-compose.prod.yml ps
 
             # Test health check
             curl -f http://localhost/health || echo "Health check failed"
