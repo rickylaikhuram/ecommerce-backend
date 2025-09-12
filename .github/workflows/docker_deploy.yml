@@ -1,0 +1,87 @@
+name: Deploy to EC2
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches: ["main"]
+
+env:
+  DOCKER_IMAGE: rickylyxon/ecom_clover
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create .env file
+        run: |
+          mkdir -p deployment
+          cat > deployment/.env << EOF
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PORT=${{ secrets.PORT }}
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          SMS_API_KEY=${{ secrets.SMS_API_KEY }}
+          OTP_REDIS_USERNAME=${{ secrets.OTP_REDIS_USERNAME }}
+          OTP_REDIS_PASSWORD=${{ secrets.OTP_REDIS_PASSWORD }}
+          OTP_REDIS_HOST=${{ secrets.OTP_REDIS_HOST }}
+          OTP_REDIS_PORT=${{ secrets.OTP_REDIS_PORT }}
+          UPSTASH_REDIS_URL=${{ secrets.UPSTASH_REDIS_URL }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
+          CLOVERSHOP_CREATE_ORDER_URL=${{ secrets.CLOVERSHOP_CREATE_ORDER_URL }}
+          CLOVERSHOP_API_TOKEN=${{ secrets.CLOVERSHOP_API_TOKEN }}
+          REDIRECT_URL=${{ secrets.REDIRECT_URL }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          EOF
+
+      - name: Copy deployment files to server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "deployment/.env,docker-compose.prod.yml,nginx/"
+          target: "/home/${{ secrets.EC2_USER }}/app"
+          strip_components: 0
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/${{ secrets.EC2_USER }}/app
+
+            # Login to Docker Hub
+            echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login --username "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+
+            # Pull latest image
+            docker pull ${{ env.DOCKER_IMAGE }}:latest
+
+            # Stop existing containers
+            docker-compose -f docker-compose.prod.yml down || true
+
+            # Start new containers
+            docker-compose -f docker-compose.prod.yml up -d
+
+            # Clean up old images
+            docker image prune -f
+
+            # Verify deployment
+            sleep 15
+            docker-compose -f docker-compose.prod.yml ps
+
+            # Test health check
+            curl -f http://localhost/health || echo "Health check failed"
