@@ -162,8 +162,8 @@ export const cloverWebhookHandler = async (
     // email send for order creation
     const email = confirmedOrder.customerEmail;
     const subject = `Order Confirmation - #${confirmedOrder.orderNumber}`;
-    const html = generateOrderConfirmationHtml(confirmedOrder);
-    const text = generateOrderConfirmationText(confirmedOrder);
+    const html = generateOrderConfirmationHtml(confirmedOrder, "UPI");
+    const text = generateOrderConfirmationText(confirmedOrder, "UPI");
     try {
       await sendOrderConfirmation(email, subject, html, text);
     } catch (emailError) {

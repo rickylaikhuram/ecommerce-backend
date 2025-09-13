@@ -931,8 +931,8 @@ export const cashOnDeliveryController = async (
 
     const email = order.customerEmail;
     const subject = `Order Confirmation - #${order.orderNumber}`;
-    const html = generateOrderConfirmationHtml(order);
-    const text = generateOrderConfirmationText(order);
+    const html = generateOrderConfirmationHtml(order, "COD");
+    const text = generateOrderConfirmationText(order, "COD");
     try {
       await sendOrderConfirmation(email, subject, html, text);
     } catch (emailError) {
@@ -1013,12 +1013,13 @@ export const getOrderDetails = async (
     }
 
     const orderDetails = await prisma.order.findUnique({
-      where: { id: orderId },
+      where: { id: orderId, userId: uid },
       select: {
         id: true,
         totalAmount: true,
         status: true,
         createdAt: true,
+        orderNumber: true,
 
         customerName: true,
         customerEmail: true,
@@ -1059,6 +1060,84 @@ export const getOrderDetails = async (
     res.status(200).json({
       success: true,
       message: "Order Details fetched successfully",
+      orderDetails,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const cancelOrder = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const uid = req.user?.uid;
+    const orderId = req.params.orderId;
+
+    if (!uid) {
+      const error = new Error("Unauthorized") as any;
+      error.statusCode = 401;
+      throw error;
+    }
+
+    if (!orderId || typeof orderId !== "string") {
+      const error = new Error("Order id is necessary") as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Fetch order
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      const error = new Error("Order not found") as any;
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Check ownership
+    if (order.userId !== uid) {
+      const error = new Error(
+        "You are not allowed to cancel this order"
+      ) as any;
+      error.statusCode = 403;
+      throw error;
+    }
+
+    // Already cancelled
+    if (order.status === "CANCELLED") {
+      const error = new Error("Order is already cancelled") as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Time difference check (24 hours in ms)
+    const now = new Date().getTime();
+    const createdAt = new Date(order.createdAt).getTime();
+    const diffMs = now - createdAt;
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+
+    if (diffMs > twentyFourHours) {
+      const error = new Error(
+        "Orders older than 24 hours cannot be cancelled"
+      ) as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Cancel order
+    const orderDetails = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "CANCELLED" },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
       orderDetails,
     });
   } catch (err) {

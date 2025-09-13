@@ -31,6 +31,7 @@ import {
   getOrderDetails,
   changePassword,
   cashOnDeliveryController,
+  cancelOrder,
 } from "../controllers/user.controller";
 import {
   handleOtpSigninInitiate,
@@ -324,6 +325,14 @@ router.get(
   isUser,
   queryExistingUserCheck,
   getOrderDetails
+);
+
+router.patch(
+  "/cancel-orders/:orderId",
+  identifySessionUser,
+  isUser,
+  queryExistingUserCheck,
+  cancelOrder
 );
 
 // log out user
