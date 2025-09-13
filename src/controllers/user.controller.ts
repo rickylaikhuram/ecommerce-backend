@@ -15,6 +15,11 @@ import { emailSchema, indianPhoneNumberSchema } from "../utils/inputValidation";
 import { generateOTP } from "../utils/otp";
 import { sendOtpSms } from "../services/otp.service";
 import { comparePassword, generateSalt, hashPassword } from "../utils/hash";
+import { sendOrderConfirmation } from "../services/email.services";
+import {
+  generateOrderConfirmationHtml,
+  generateOrderConfirmationText,
+} from "../utils/email.template";
 
 dotenv.config();
 
@@ -921,6 +926,18 @@ export const cashOnDeliveryController = async (
         status: "COMPLETED",
       },
     });
+
+    // email send for order creation
+
+    const email = order.customerEmail;
+    const subject = `Order Confirmation - #${order.orderNumber}`;
+    const html = generateOrderConfirmationHtml(order);
+    const text = generateOrderConfirmationText(order);
+    try {
+      await sendOrderConfirmation(email, subject, html, text);
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+    }
 
     // Respond to client
     res.status(200).json({

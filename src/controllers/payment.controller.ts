@@ -1,7 +1,12 @@
-import { Request, Response, NextFunction } from 'express';
-import { redisApp } from '../config/redis';
-import prisma from '../config/prisma';
-import { Prisma } from '@prisma/client';
+import { Request, Response, NextFunction } from "express";
+import { redisApp } from "../config/redis";
+import prisma from "../config/prisma";
+import { Prisma } from "@prisma/client";
+import { sendOrderConfirmation } from "../services/email.services";
+import {
+  generateOrderConfirmationHtml,
+  generateOrderConfirmationText,
+} from "../utils/email.template";
 
 // Define the shape of the stock row returned by raw query
 interface StockRow {
@@ -77,59 +82,93 @@ export const cloverWebhookHandler = async (
     }
 
     // === RUN STOCK, ORDER, AND REDIS UPDATE IN A TRANSACTION ===
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      for (const item of items) {
-        // 1. Lock the stock row with proper typing
-        const stockRows = await tx.$queryRawUnsafe(`
+    const confirmedOrder = await prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        for (const item of items) {
+          // 1. Lock the stock row with proper typing
+          const stockRows = (await tx.$queryRawUnsafe(
+            `
           SELECT * FROM "ProductStock"
           WHERE "productId" = $1 AND "stockName" = $2
           FOR UPDATE
-        `, item.productId, item.stockName) as StockRow[];
+        `,
+            item.productId,
+            item.stockName
+          )) as StockRow[];
 
-        const stockRow = stockRows[0];
-        if (!stockRow) {
-          throw new Error("Stock not found");
-        }
+          const stockRow = stockRows[0];
+          if (!stockRow) {
+            throw new Error("Stock not found");
+          }
 
-        if (stockRow.stock < item.quantity) {
-          throw new Error("Insufficient stock");
-        }
+          if (stockRow.stock < item.quantity) {
+            throw new Error("Insufficient stock");
+          }
 
-        // 2. Decrement stock after lock
-        await tx.productStock.update({
-          where: { id: stockRow.id },
-          data: { stock: { decrement: item.quantity } },
-        });
+          // 2. Decrement stock after lock
+          await tx.productStock.update({
+            where: { id: stockRow.id },
+            data: { stock: { decrement: item.quantity } },
+          });
 
-        // 3. Update Redis reservations atomically
-        const redisKey = `stock:reservation:${item.productId}:${item.stockName}`;
-        const currentReserved = await redisApp.get(redisKey);
+          // 3. Update Redis reservations atomically
+          const redisKey = `stock:reservation:${item.productId}:${item.stockName}`;
+          const currentReserved = await redisApp.get(redisKey);
 
-        if (currentReserved) {
-          const remaining = parseInt(currentReserved, 10) - item.quantity;
-          if (remaining <= 0) {
-            await redisApp.del(redisKey);
-          } else {
-            const ttl = await redisApp.ttl(redisKey);
-            // use the existing TTL if still valid, otherwise reset to 30min
-            if (ttl > 0) {
-              await redisApp.set(redisKey, remaining.toString(), "EX", ttl);
+          if (currentReserved) {
+            const remaining = parseInt(currentReserved, 10) - item.quantity;
+            if (remaining <= 0) {
+              await redisApp.del(redisKey);
             } else {
-              await redisApp.set(redisKey, remaining.toString(), "EX", 60 * 30);
+              const ttl = await redisApp.ttl(redisKey);
+              // use the existing TTL if still valid, otherwise reset to 30min
+              if (ttl > 0) {
+                await redisApp.set(redisKey, remaining.toString(), "EX", ttl);
+              } else {
+                await redisApp.set(
+                  redisKey,
+                  remaining.toString(),
+                  "EX",
+                  60 * 30
+                );
+              }
             }
           }
         }
-      }
 
-      // 4. Confirm the order in the same transaction
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: "CONFIRMED" },
-      });
-    });
+        // 4. Confirm the order in the same transaction
+        return await tx.order.update({
+          where: { id: orderId },
+          data: { status: "CONFIRMED" },
+          include: {
+            orderItems: {
+              select: {
+                id: true,
+                stockName: true,
+                quantity: true,
+                price: true,
+                productName: true,
+                productImageUrl: true,
+              },
+            },
+          },
+        });
+      }
+    );
 
     // Remove order snapshot (safe to do outside transaction)
     await redisApp.del(`order:reservation:${remark1}`);
+
+    // email send for order creation
+    const email = confirmedOrder.customerEmail;
+    const subject = `Order Confirmation - #${confirmedOrder.orderNumber}`;
+    const html = generateOrderConfirmationHtml(confirmedOrder);
+    const text = generateOrderConfirmationText(confirmedOrder);
+    try {
+      await sendOrderConfirmation(email, subject, html, text);
+    } catch (emailError) {
+      console.error("Failed to send order confirmation email:", emailError);
+    }
 
     res
       .status(200)
