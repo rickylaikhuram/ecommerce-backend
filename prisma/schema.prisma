@@ -142,6 +142,7 @@ model Order {
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  deliveryId   String?
 
   // Customer info snapshot
   customerName  String
