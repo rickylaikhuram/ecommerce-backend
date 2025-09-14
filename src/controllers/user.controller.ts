@@ -971,6 +971,7 @@ export const getAllOrder = async (
       orderBy: { createdAt: "desc" }, // optional: newest first
       select: {
         id: true,
+        orderNumber: true,
         totalAmount: true,
         status: true,
         createdAt: true,
