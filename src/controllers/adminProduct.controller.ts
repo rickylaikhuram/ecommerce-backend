@@ -1014,6 +1014,7 @@ export const handleGetPriceSetting = async (req: Request, res: Response) => {
       deliveryFee: true,
       freeDeliveryThreshold: true,
       allowedZipCodes: true,
+      allowedCODZipCodes: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -1035,6 +1036,7 @@ export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
     deliveryFee,
     freeDeliveryThreshold,
     allowedZipCodes,
+    allowedCODZipCodes,
   } = req.body;
 
   const priceDetails = await prisma.priceSetting.update({
@@ -1045,6 +1047,7 @@ export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
       deliveryFee,
       freeDeliveryThreshold,
       allowedZipCodes,
+      allowedCODZipCodes,
     },
     select: {
       id: true,
@@ -1055,6 +1058,7 @@ export const handleUpdatePriceSetting = async (req: Request, res: Response) => {
       deliveryFee: true,
       freeDeliveryThreshold: true,
       allowedZipCodes: true,
+      allowedCODZipCodes: true,
     },
   });
 

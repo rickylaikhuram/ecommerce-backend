@@ -1913,6 +1913,7 @@ export const getDeliverySettings = async (req: Request, res: Response) => {
       deliveryFee: true,
       freeDeliveryThreshold: true,
       allowedZipCodes: true,
+      allowedCODZipCodes: true,
       createdAt: true,
       updatedAt: true,
     },
