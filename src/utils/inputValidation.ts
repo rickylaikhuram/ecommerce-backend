@@ -240,5 +240,6 @@ export const deliveryConfigSchema = z.object({
   checkThreshold: z.boolean().default(true),
   deliveryFee: z.number().default(0),
   freeDeliveryThreshold: z.number().default(0),
-  allowedZipCodes: z.array(z.string()).default([]),
+  allowedZipCodes: z.array(z.string()).catch([]),
+  allowedCODZipCodes: z.array(z.string()).catch([]),
 });
