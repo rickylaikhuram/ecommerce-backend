@@ -14,6 +14,7 @@ async function main() {
         deliveryFee: 50.0,
         freeDeliveryThreshold: 500.0,
         allowedZipCodes: [],
+        allowedCODZipCodes:[],
         isActive: true,
       },
     });

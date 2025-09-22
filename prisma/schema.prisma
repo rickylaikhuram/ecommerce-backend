@@ -22,6 +22,8 @@ model User {
   addresses     Address[]
   orders        Order[]
   cartItems     CartItem[]
+  reviews       Review[] // New relation to reviews
+  couponUsage   UserCouponUsage[] // Track coupon usage
 }
 
 model Category {
@@ -52,6 +54,8 @@ model Product {
   images          ProductImage[]
   totalSales      Int            @default(0)
   views           Int            @default(0)
+  averageRating   Decimal?       @default(0) @db.Decimal(3, 2) // e.g., 4.25 (max 5.00)
+  totalReviews    Int            @default(0) // Cache review count
   createdAt       DateTime       @default(now())
 
   categoryId String
@@ -61,6 +65,9 @@ model Product {
   cartItems    CartItem[]
   orderItems   OrderItem[]
   wishlistedBy WishlistItem[]
+  reviews      Review[] // New relation to reviews
+
+  @@index([averageRating]) // Index for sorting by rating
 }
 
 model ProductImage {
@@ -142,7 +149,12 @@ model Order {
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  deliveryId   String?
+  deliveryId  String?
+  
+  // Coupon applied to this order
+  couponId       String?
+  couponCode     String?    // Store code for reference
+  discountAmount Decimal?   // Amount discounted
 
   // Customer info snapshot
   customerName  String
@@ -163,11 +175,13 @@ model Order {
 
   // Relations
   user       User?       @relation(fields: [userId], references: [id])
+  coupon     Coupon?     @relation(fields: [couponId], references: [id])
   orderItems OrderItem[]
   payment    Payment?
 
   @@index([userId])
   @@index([status])
+  @@index([couponId])
 }
 
 model OrderItem {
@@ -203,7 +217,100 @@ model Payment {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-// app core funtion model
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  rating    Int // 1-5 stars
+  title     String?
+  comment   String?
+  isVerifiedPurchase Boolean @default(false) // If user actually bought the product
+  isApproved Boolean @default(true) // For moderation
+  isDeleted  Boolean @default(false) // Soft delete
+  deletedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reviewImages ReviewImage[]
+
+  // Ensure one review per user per product
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([rating])
+  @@index([isApproved])
+}
+
+model ReviewImage {
+  id       String @id @default(uuid())
+  reviewId String
+  imageUrl String
+  altText  String?
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+}
+
+// COUPON SYSTEM
+
+model Coupon {
+  id                String       @id @default(uuid())
+  code              String       @unique
+  name              String?      // Display name like "SUMMER2024"
+  description       String?      // "Get 20% off on summer collection"
+  discountType      DiscountType // PERCENTAGE or FIXED_AMOUNT
+  discountValue     Decimal      // 20 (for 20%) or 500 (for ₹500)
+  minOrderAmount    Decimal?     // Minimum cart value to apply coupon
+  maxDiscountAmount Decimal?     // Maximum discount (for percentage coupons)
+  
+  // Usage limits
+  usageLimit        Int?         // Total times this coupon can be used
+  usagePerUser      Int?         @default(1) // Times per user can use
+  usedCount         Int          @default(0) // How many times used
+  
+  // Validity
+  isActive          Boolean      @default(true)
+  validFrom         DateTime     @default(now())
+  validUntil        DateTime
+  
+  // Targeting (optional - if empty, applies to all)
+  applicableProducts   String[]  @default([]) // Product IDs
+  applicableCategories String[]  @default([]) // Category IDs
+  
+  // Admin info
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  createdBy         String?      // Admin user ID who created this
+  
+  // Relations
+  orders            Order[]      // Orders that used this coupon
+  userCouponUsage   UserCouponUsage[] // Track per-user usage
+  
+  @@index([code])
+  @@index([isActive])
+  @@index([validFrom, validUntil])
+}
+
+// Track how many times each user has used each coupon
+model UserCouponUsage {
+  id       String @id @default(uuid())
+  userId   String
+  couponId String
+  usedCount Int   @default(0)
+  lastUsedAt DateTime?
+  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, couponId])
+  @@index([userId])
+  @@index([couponId])
+}
+
+// app core function model
 
 model PriceSetting {
   id                    String   @id @default(uuid())
@@ -212,6 +319,7 @@ model PriceSetting {
   deliveryFee           Decimal  @default(0) // Delivery fee amount
   freeDeliveryThreshold Decimal  @default(0) // Minimum order for free delivery
   allowedZipCodes       String[] // Array of allowed zip codes
+  allowedCODZipCodes    String[] // Array of allowed zip codes
   isActive              Boolean  @default(true)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -246,4 +354,9 @@ enum PaymentMethod {
   CARD
   NETBANKING
   PAYPAL
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
 }
