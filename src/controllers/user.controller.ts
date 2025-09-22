@@ -966,19 +966,27 @@ export const getAllOrder = async (
       throw error;
     }
 
-    const order = await prisma.order.findMany({
+    const orders = await prisma.order.findMany({
       where: { userId: uid },
-      orderBy: { createdAt: "desc" }, // optional: newest first
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         orderNumber: true,
-        totalAmount: true,
+        // totalAmount: true,
         status: true,
         createdAt: true,
-        payment: {
+        // _count: {
+        //   select: { orderItems: true },
+        // },
+        orderItems: {
           select: {
-            status: true,
-            method: true,
+            productId: true,
+            stockName: true,
+            price: true,
+            productName: true,
+            productImageUrl: true,
+            productDescription: true,
+            productCategory: true,
           },
         },
       },
@@ -987,7 +995,7 @@ export const getAllOrder = async (
     res.status(200).json({
       success: true,
       message: "Order fetched successfully",
-      order,
+      order: orders,
     });
   } catch (err) {
     next(err);
