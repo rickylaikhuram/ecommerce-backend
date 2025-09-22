@@ -1,4 +1,6 @@
 // text order confirmation for email
+const S3_BASE_URL = process.env.S3_BASE_URL;
+const LOGO = "logo/logo_white_detals.png";
 export function generateOrderConfirmationText(
   order: any,
   paymentMethod: string
@@ -72,7 +74,7 @@ export function generateOrderConfirmationText(
     `.trim();
 }
 
-// html order confirmation for email
+// html order confirmation for email - Barcelona-inspired design with Clover Arena branding
 export function generateOrderConfirmationHtml(
   order: any,
   paymentMethod: string
@@ -84,34 +86,24 @@ export function generateOrderConfirmationHtml(
       method.toLowerCase() === "cash on delivery"
     ) {
       return `
-      <!-- COD Payment Instructions -->
-      <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-        <h3 style="margin: 0 0 10px; color: #92400e; font-size: 18px; display: flex; align-items: center;">
-          💳 Payment Method: Cash on Delivery (COD)
+      <div style="background: #1f2937; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #374151;">
+        <h3 style="margin: 0 0 12px; color: #10b981; font-size: 18px; font-weight: 600;">
+          💳 Cash on Delivery (COD)
         </h3>
-        <div style="color: #92400e; font-size: 15px; line-height: 1.6;">
-          <p style="margin: 0 0 10px; font-weight: 600;">Please keep ₹${order.totalAmount.toFixed(
-            2
-          )} ready for payment</p>
-          <ul style="margin: 10px 0; padding-left: 20px;">
-            <li style="margin-bottom: 5px;">Keep exact change ready to make the process smoother</li>
-            <li style="margin-bottom: 5px;">Our delivery partner will collect payment upon delivery</li>
-            <li style="margin-bottom: 5px;">You can pay with cash or card (if available with delivery person)</li>
-            <li style="margin-bottom: 5px;">Please be available at the delivery address</li>
-          </ul>
-        </div>
+        <p style="margin: 0 0 8px; color: #e5e7eb; font-size: 16px; font-weight: 600;">Amount to Pay: ₹${order.totalAmount.toFixed(
+          2
+        )}</p>
+        <p style="margin: 0; color: #9ca3af; font-size: 14px; line-height: 1.5;">
+          Keep exact change ready. Payment will be collected upon delivery. Cash or card accepted.
+        </p>
       </div>`;
     } else {
       return `
-      <!-- Other Payment Method Status -->
-      <div style="background-color: #d1fae5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-        <h3 style="margin: 0 0 10px; color: #065f46; font-size: 18px; display: flex; align-items: center;">
-          ✅ Payment Method: ${method}
+      <div style="background: #1f2937; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #374151;">
+        <h3 style="margin: 0 0 8px; color: #10b981; font-size: 18px; font-weight: 600;">
+          ✅ Payment: ${method}
         </h3>
-        <div style="color: #065f46; font-size: 15px; line-height: 1.6;">
-          <p style="margin: 0; font-weight: 600;">Payment Status: Successfully Processed</p>
-          <p style="margin: 10px 0 0;">Your payment has been confirmed. No additional payment is required upon delivery.</p>
-        </div>
+        <p style="margin: 0; color: #9ca3af; font-size: 14px;">Payment confirmed. No additional payment required.</p>
       </div>`;
     }
   };
@@ -123,19 +115,8 @@ export function generateOrderConfirmationHtml(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Order Confirmation</title>
-    <!--[if mso]>
-    <noscript>
-        <xml>
-        <o:OfficeDocumentSettings>
-            <o:AllowPNG/>
-            <o:PixelsPerInch>96</o:PixelsPerInch>
-        </o:OfficeDocumentSettings>
-        </xml>
-    </noscript>
-    <![endif]-->
+    <title>Order Confirmation - Clover Arena</title>
     <style>
-        /* Reset styles for better email client compatibility */
         body, table, td, p, a, li, blockquote {
         -webkit-text-size-adjust: 100%;
         -ms-text-size-adjust: 100%;
@@ -153,14 +134,13 @@ export function generateOrderConfirmationHtml(
         text-decoration: none;
         }
         
-        /* Responsive styles */
         @media screen and (max-width: 600px) {
         .container {
             width: 100% !important;
             max-width: 100% !important;
         }
         .mobile-padding {
-            padding: 10px !important;
+            padding: 16px !important;
         }
         .mobile-text {
             font-size: 14px !important;
@@ -168,161 +148,190 @@ export function generateOrderConfirmationHtml(
         .mobile-hide {
             display: none !important;
         }
+        .logo-mobile {
+            width: 120px !important;
+            height: auto !important;
+        }
+        .header-mobile {
+            font-size: 24px !important;
+        }
         }
     </style>
     </head>
-    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: transparent; color: inherit;">
+    
     <!-- Preheader text -->
-    <div style="display: none; font-size: 1px; color: #fefefe; line-height: 1px; font-family: Arial, sans-serif; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
-        Your order #${
+    <div style="display: none; font-size: 1px; color: transparent; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
+        Order #${
           order.orderNumber
-        } has been confirmed and is being processed.
+        } confirmed - Thank you for choosing Clover Arena!
     </div>
 
     <!-- Main container -->
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: transparent; min-height: 100vh;">
         <tr>
-        <td style="padding: 20px 0;">
+        <td style="padding: 20px 10px;">
             <!-- Email content wrapper -->
-            <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px; background: transparent; border-radius: 0; overflow: visible;">
             
-            <!-- Header -->
+           <!-- Header with gradient background -->
             <tr>
-                <td style="background-color: #4f46e5; padding: 30px 20px; text-align: center;">
-                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold; line-height: 1.2;">
-                    Thank you for your order!
-                </h1>
-                <p style="margin: 10px 0 0; color: #e0e7ff; font-size: 18px;">
-                    Order #${order.orderNumber}
-                </p>
-                </td>
+              <td style="background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); padding: 0px 0px 0px 13px; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+                <div style="text-align: left;">
+                  <img 
+                    src="${S3_BASE_URL}${LOGO}"
+                    alt="Clover Arena" 
+                    width="160" 
+                    height="auto" 
+                    class="logo-mobile"
+                    style="display: block; max-width: 160px; height: auto;" />
+                </div>
+              </td>
             </tr>
 
             <!-- Main content -->
             <tr>
-                <td class="mobile-padding" style="padding: 30px 20px;">
+                <td class="mobile-padding" style="padding: 24px; background: transparent;">
                 
-                <!-- Greeting -->
-                <h2 style="margin: 0 0 15px; color: #1f2937; font-size: 24px; font-weight: normal;">
-                    Hello ${order.customerName},
-                </h2>
-                <p style="margin: 0 0 25px; color: #4b5563; font-size: 16px; line-height: 1.5;">
-                    We've received your order and it's now being processed. We'll keep you updated on its progress.
+                <!-- Main heading -->
+                <h1 class="header-mobile" style="margin: 0 0 16px; color: inherit; font-size: 32px; font-weight: 700; line-height: 1.2;">
+                    Your order is confirmed
+                </h1>
+                
+                <p style="margin: 0 0 8px; color: inherit; opacity: 0.7; font-size: 16px; line-height: 1.5;">
+                    Hi ${
+                      order.customerName
+                    }, your order has been received and is now being processed. We'll keep you updated on its progress.
                 </p>
+
+                <!-- Order info -->
+                <div style="margin: 24px 0;">
+                    <h2 style="margin: 0 0 8px; color: inherit; font-size: 24px; font-weight: 700;">
+                        Order: #${order.orderNumber}
+                    </h2>
+                    <p style="margin: 0; color: inherit; opacity: 0.6; font-size: 14px;">
+                        Placed on ${new Date().toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                    </p>
+                </div>
 
                 <!-- Payment Method Section -->
                 ${getPaymentHtml(paymentMethod)}
 
-                <!-- Order summary -->
-                <h3 style="margin: 0 0 15px; color: #1f2937; font-size: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
-                    Order Summary
-                </h3>
+                <!-- Items section -->
+                <div style="background: #d97706; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
+                    <h3 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                        Items in your order
+                    </h3>
+                </div>
 
-                <!-- Items table -->
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse; margin-bottom: 20px;">
-                    <thead>
-                    <tr style="background-color: #f9fafb;">
-                        <th style="padding: 12px 8px; text-align: left; color: #374151; font-size: 14px; font-weight: 600; border-bottom: 1px solid #d1d5db;">
-                        Item
-                        </th>
-                        <th style="padding: 12px 8px; text-align: center; color: #374151; font-size: 14px; font-weight: 600; border-bottom: 1px solid #d1d5db; width: 60px;">
-                        Qty
-                        </th>
-                        <th style="padding: 12px 8px; text-align: right; color: #374151; font-size: 14px; font-weight: 600; border-bottom: 1px solid #d1d5db; width: 80px;">
-                        Price
-                        </th>
-                    </tr>
-                    </thead>
-                    <tbody>
+                <!-- Order items -->
+                <div style="margin-bottom: 24px; overflow-x: auto;">
                     ${order.orderItems
                       .map(
                         (item: any) => `
-                        <tr style="border-bottom: 1px solid #f3f4f6;">
-                        <td style="padding: 15px 8px; vertical-align: top;">
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                            <tr>
-                                <td style="padding-right: 10px; vertical-align: top;">
-                                <img src="${item.productImageUrl}" 
-                                    alt="${item.productName}" 
-                                    width="60" height="60" 
-                                    style="display: block; border-radius: 6px; object-fit: cover;" />
-                                </td>
-                                <td style="vertical-align: top;">
-                                <div style="color: #1f2937; font-size: 15px; font-weight: 500; line-height: 1.3; margin-bottom: 4px;">
-                                    ${item.productName}
-                                </div>
-                                <div style="color: #6b7280; font-size: 13px;">
-                                    ${item.stockName}
-                                </div>
-                                </td>
-                            </tr>
+                        <div style="background: rgba(0, 0, 0, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid rgba(0, 0, 0, 0.1); backdrop-filter: blur(10px); min-width: 480px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="width: 80px; padding-right: 16px; vertical-align: top;">
+                                        <div style="width: 80px; height: 80px; border-radius: 8px; overflow: hidden; background: rgba(0, 0, 0, 0.1);">
+                                            <img 
+                                                src="${S3_BASE_URL}${
+                          item.productImageUrl
+                        }"
+                                                alt="${item.productName}" 
+                                                width="80" 
+                                                height="80" 
+                                                style="display: block; width: 100%; height: 100%; object-fit: cover;" />
+                                        </div>
+                                    </td>
+                                    <td style="vertical-align: top; padding-right: 16px; width: auto; overflow: hidden;">
+                                        <h4 style="margin: 0 0 8px; color: inherit; font-size: 18px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;" title="${
+                                          item.productName
+                                        }">
+                                            ${item.productName}
+                                        </h4>
+                                        <p style="margin: 0 0 4px; color: inherit; opacity: 0.7; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;" title="${
+                                          item.stockName
+                                        }">
+                                            ${item.stockName}
+                                        </p>
+                                        <p style="margin: 0; color: inherit; opacity: 0.7; font-size: 14px;">
+                                            Quantity: ${item.quantity}
+                                        </p>
+                                    </td>
+                                    <td style="vertical-align: top; text-align: right; width: 100px; min-width: 100px;">
+                                        <p style="margin: 0; color: inherit; font-size: 20px; font-weight: 700;">
+                                            ₹${(
+                                              item.price * item.quantity
+                                            ).toFixed(2)}
+                                        </p>
+                                    </td>
+                                </tr>
                             </table>
-                        </td>
-                        <td style="padding: 15px 8px; text-align: center; color: #374151; font-size: 15px;">
-                            ${item.quantity}
-                        </td>
-                        <td style="padding: 15px 8px; text-align: right; color: #1f2937; font-size: 15px; font-weight: 600;">
-                            ₹${(item.price * item.quantity).toFixed(2)}
-                        </td>
-                        </tr>
+                        </div>
                     `
                       )
                       .join("")}
-                    </tbody>
-                </table>
+                </div>
 
                 <!-- Total -->
-                <div style="text-align: right; margin-bottom: 30px;">
-                    <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; display: inline-block;">
-                    <span style="color: #1f2937; font-size: 18px; font-weight: bold;">
-                        Total: ₹${order.totalAmount.toFixed(2)}
-                    </span>
+                <div style="text-align: right; margin-bottom: 32px;">
+                    <div style="background: #10b981; color: #ffffff; padding: 16px 24px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                        <span style="font-size: 20px; font-weight: 700;">
+                            Total: ₹${order.totalAmount.toFixed(2)}
+                        </span>
                     </div>
                 </div>
 
                 <!-- Shipping address -->
-                <h3 style="margin: 0 0 15px; color: #1f2937; font-size: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">
-                    Shipping Address
-                </h3>
-                <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 25px;">
-                    <p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
-                    <strong>${order.shippingFullName}</strong><br/>
-                    ${order.shippingLine1}${
-    order.shippingLine2 ? "<br/>" + order.shippingLine2 : ""
-  }<br/>
-                    ${order.shippingCity}, ${order.shippingState} ${
-    order.shippingZipCode
-  }<br/>
-                    ${order.shippingCountry}<br/>
-                    <span style="color: #6b7280;">Phone: ${
-                      order.shippingPhone
-                    }</span>
-                    </p>
+                <div style="background: rgba(0, 0, 0, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid rgba(0, 0, 0, 0.1); backdrop-filter: blur(10px);">
+                    <h3 style="margin: 0 0 16px; color: #10b981; font-size: 18px; font-weight: 600;">
+                        🚚 Shipping Address
+                    </h3>
+                    <div style="color: inherit; font-size: 15px; line-height: 1.6;">
+                        <p style="margin: 0 0 4px; font-weight: 600; color: inherit; font-size: 16px;">${
+                          order.shippingFullName
+                        }</p>
+                        <p style="margin: 0; color: inherit; opacity: 0.7;">
+                            ${order.shippingLine1}${
+                              order.shippingLine2 ? "<br/>" + order.shippingLine2 : ""
+                            }<br/>
+                                                      ${order.shippingCity}, ${order.shippingState} ${
+                              order.shippingZipCode
+                            }<br/>
+                            ${order.shippingCountry}<br/>
+                            📞 ${order.shippingPhone}
+                        </p>
+                    </div>
                 </div>
 
                 <!-- Next steps -->
-                <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px 20px; margin-bottom: 20px;">
-                    <p style="margin: 0; color: #1e40af; font-size: 15px; line-height: 1.5;">
-                    <strong>What's Next?</strong><br/>
-                    We'll send you another update when your items are shipped with tracking information.
-                    ${
-                      paymentMethod.toLowerCase() === "cod" ||
-                      paymentMethod.toLowerCase() === "cash on delivery"
-                        ? "<br/><strong>Remember to keep your payment ready for the delivery person!</strong>"
-                        : ""
-                    }
+                <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 12px; padding: 20px; margin-bottom: 32px; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);">
+                    <h4 style="margin: 0 0 12px; color: #ffffff; font-size: 18px; font-weight: 600;">
+                        🚀 What's Next?
+                    </h4>
+                    <p style="margin: 0; color: #e0e7ff; font-size: 15px; line-height: 1.5;">
+                        You can check the status and updates of your order directly on our website.
+                        ${
+                          paymentMethod.toLowerCase() === "cod" ||
+                          paymentMethod.toLowerCase() === "cash on delivery"
+                            ? "<br/><strong style='color: #fbbf24;'>💰 Remember to keep your payment ready for delivery!</strong>"
+                            : ""
+                        }
                     </p>
                 </div>
-                </td>
-            </tr>
 
-            <!-- Footer -->
-            <tr>
-                <td style="background-color: #f3f4f6; padding: 20px; text-align: center;">
-                <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
-                    © ${new Date().getFullYear()} Clover Arena. All rights reserved.<br/>
-                    <span class="mobile-hide">This email was sent regarding your recent order.</span>
-                </p>
+                <!-- Footer message -->
+                <div style="text-align: center; padding: 20px 0;">
+                    <p style="margin: 0; color: inherit; opacity: 0.6; font-size: 14px; line-height: 1.5;">
+                        © ${new Date().getFullYear()} Clover Arena. All rights reserved.<br/>
+                        Thank you for choosing us! 🙏
+                    </p>
+                </div>
                 </td>
             </tr>
             </table>
