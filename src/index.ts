@@ -9,6 +9,7 @@ import products from "./routes/product.routes";
 import paymentRoutes from "./routes/payment.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 import { connectRedisClients } from "./config/redis";
+import "./jobs/cronjob.services"
 
 dotenv.config();
 
@@ -20,7 +21,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://projectecommerce.pages.dev"],
+    origin: ["http://localhost:5173", "https://projectecommerce.pages.dev","https://cloverarena.com"],
     credentials: true,
   })
 );
