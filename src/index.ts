@@ -21,7 +21,11 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://projectecommerce.pages.dev","https://cloverarena.com"],
+    origin: [
+      // "http://localhost:5173",
+      // "https://projectecommerce.pages.dev",
+      "https://cloverarena.com",
+      "https://www.cloverarena.com"],
     credentials: true,
   })
 );
@@ -38,7 +42,7 @@ app.use("/api/product", products);
 app.use("/api/payment", paymentRoutes);
 
 app.get("/health", (req, res) => {
-  res.status(200).send("Health route works");
+  res.status(200).send("Perfect you are good to go");
 });
 
 // Global Error Handler
