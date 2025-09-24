@@ -42,7 +42,7 @@ app.use("/api/product", products);
 app.use("/api/payment", paymentRoutes);
 
 app.get("/health", (req, res) => {
-  res.status(200).send("Perfect you are good to go");
+  res.status(200).send("Backend service healthy - " + new Date().toISOString());
 });
 
 // Global Error Handler
