@@ -174,9 +174,9 @@ export function generateOrderConfirmationHtml(
             <!-- Email content wrapper -->
             <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px; background: transparent; border-radius: 0; overflow: visible;">
             
-           <!-- Header with gradient background -->
+           <!-- Header with emerald background -->
             <tr>
-              <td style="background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); padding: 0px 0px 0px 13px; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+              <td style="background: #10b981; padding: 0px 0px 0px 13px; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
                 <div style="text-align: left;">
                   <img 
                     src="${S3_BASE_URL}${LOGO}"
@@ -222,7 +222,7 @@ export function generateOrderConfirmationHtml(
                 ${getPaymentHtml(paymentMethod)}
 
                 <!-- Items section -->
-                <div style="background: #d97706; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
+                <div style="background: #10b981; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
                     <h3 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
                         Items in your order
                     </h3>
@@ -233,15 +233,15 @@ export function generateOrderConfirmationHtml(
                     ${order.orderItems
                       .map(
                         (item: any) => `
-                        <div style="background: rgba(0, 0, 0, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid rgba(0, 0, 0, 0.1); backdrop-filter: blur(10px); min-width: 480px;">
+                        <div style="background: rgba(16, 185, 129, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid rgba(16, 185, 129, 0.2); min-width: 480px;">
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                 <tr>
                                     <td style="width: 80px; padding-right: 16px; vertical-align: top;">
-                                        <div style="width: 80px; height: 80px; border-radius: 8px; overflow: hidden; background: rgba(0, 0, 0, 0.1);">
+                                        <div style="width: 80px; height: 80px; border-radius: 8px; overflow: hidden; background: rgba(16, 185, 129, 0.1);">
                                             <img 
                                                 src="${S3_BASE_URL}${
-                          item.productImageUrl
-                        }"
+                                                      item.productImageUrl
+                                                    }"
                                                 alt="${item.productName}" 
                                                 width="80" 
                                                 height="80" 
@@ -264,7 +264,7 @@ export function generateOrderConfirmationHtml(
                                         </p>
                                     </td>
                                     <td style="vertical-align: top; text-align: right; width: 100px; min-width: 100px;">
-                                        <p style="margin: 0; color: inherit; font-size: 20px; font-weight: 700;">
+                                        <p style="margin: 0; color: #10b981; font-size: 20px; font-weight: 700;">
                                             ₹${(
                                               item.price * item.quantity
                                             ).toFixed(2)}
@@ -281,14 +281,14 @@ export function generateOrderConfirmationHtml(
                 <!-- Total -->
                 <div style="text-align: right; margin-bottom: 32px;">
                     <div style="background: #10b981; color: #ffffff; padding: 16px 24px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                        <span style="font-size: 20px; font-weight: 700;">
+                        <span style="font-size: 20px; font-weight: 700; color: #ffffff;">
                             Total: ₹${order.totalAmount.toFixed(2)}
                         </span>
                     </div>
                 </div>
 
                 <!-- Shipping address -->
-                <div style="background: rgba(0, 0, 0, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid rgba(0, 0, 0, 0.1); backdrop-filter: blur(10px);">
+                <div style="background: rgba(16, 185, 129, 0.05); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid rgba(16, 185, 129, 0.2);">
                     <h3 style="margin: 0 0 16px; color: #10b981; font-size: 18px; font-weight: 600;">
                         🚚 Shipping Address
                     </h3>
@@ -300,7 +300,7 @@ export function generateOrderConfirmationHtml(
                             ${order.shippingLine1}${
                               order.shippingLine2 ? "<br/>" + order.shippingLine2 : ""
                             }<br/>
-                                                      ${order.shippingCity}, ${order.shippingState} ${
+                              ${order.shippingCity}, ${order.shippingState} ${
                               order.shippingZipCode
                             }<br/>
                             ${order.shippingCountry}<br/>
@@ -310,16 +310,16 @@ export function generateOrderConfirmationHtml(
                 </div>
 
                 <!-- Next steps -->
-                <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 12px; padding: 20px; margin-bottom: 32px; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);">
+                <div style="background: #10b981; border-radius: 12px; padding: 20px; margin-bottom: 32px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
                     <h4 style="margin: 0 0 12px; color: #ffffff; font-size: 18px; font-weight: 600;">
                         🚀 What's Next?
                     </h4>
-                    <p style="margin: 0; color: #e0e7ff; font-size: 15px; line-height: 1.5;">
+                    <p style="margin: 0; color: #ffffff; font-size: 15px; line-height: 1.5;">
                         You can check the status and updates of your order directly on our website.
                         ${
                           paymentMethod.toLowerCase() === "cod" ||
                           paymentMethod.toLowerCase() === "cash on delivery"
-                            ? "<br/><strong style='color: #fbbf24;'>💰 Remember to keep your payment ready for delivery!</strong>"
+                            ? "<br/><strong style='color: #ffffff;'>💰 Remember to keep your payment ready for delivery!</strong>"
                             : ""
                         }
                     </p>
