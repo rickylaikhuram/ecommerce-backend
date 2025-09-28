@@ -81,7 +81,7 @@ export const cloverWebhookHandler = async (
       return;
     }
 
-    // === RUN STOCK, ORDER, AND REDIS UPDATE IN A TRANSACTION ===
+    // === RUN STOCK, ORDER, SALES, AND REDIS UPDATE IN A TRANSACTION ===
     const confirmedOrder = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
         for (const item of items) {
@@ -111,7 +111,17 @@ export const cloverWebhookHandler = async (
             data: { stock: { decrement: item.quantity } },
           });
 
-          // 3. Update Redis reservations atomically
+          // 3. Update product sales
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              totalSales: {
+                increment: item.quantity,
+              },
+            },
+          });
+
+          // 4. Update Redis reservations atomically
           const redisKey = `stock:reservation:${item.productId}:${item.stockName}`;
           const currentReserved = await redisApp.get(redisKey);
 
@@ -136,7 +146,7 @@ export const cloverWebhookHandler = async (
           }
         }
 
-        // 4. Confirm the order in the same transaction
+        // 5. Confirm the order in the same transaction
         return await tx.order.update({
           where: { id: orderId },
           data: { status: "CONFIRMED" },

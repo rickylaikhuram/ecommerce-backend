@@ -163,6 +163,7 @@ export async function createOrderWithPaymentMethod(
           orderItems: {
             select: {
               id: true,
+              productId: true,
               stockName: true,
               quantity: true,
               price: true,

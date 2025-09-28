@@ -20,6 +20,7 @@ import {
   generateOrderConfirmationHtml,
   generateOrderConfirmationText,
 } from "../utils/email.template";
+import { CreateOrderRequest } from "../types/checkout.types";
 
 dotenv.config();
 
@@ -918,13 +919,33 @@ export const cashOnDeliveryController = async (
       "COD"
     );
 
-    // Create payment record in DB
-    await prisma.payment.create({
-      data: {
-        orderId: order.id,
-        method: "COD",
-        status: "COMPLETED",
-      },
+    const { productDatas } = req.body as CreateOrderRequest;
+
+    // Use a transaction to ensure data consistency
+    await prisma.$transaction(async (tx) => {
+      // Create payment record
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          method: "COD",
+          status: "COMPLETED",
+        },
+      });
+
+      // Update product sales using the original productDatas
+      const updateSalesPromises = productDatas.map(async (item) => {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            totalSales: {
+              increment: item.quantity
+            }
+          }
+        });
+      });
+
+      // Execute all sales updates within the transaction
+      await Promise.all(updateSalesPromises);
     });
 
     // email send for order creation
