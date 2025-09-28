@@ -938,9 +938,9 @@ export const cashOnDeliveryController = async (
           where: { id: item.productId },
           data: {
             totalSales: {
-              increment: item.quantity
-            }
-          }
+              increment: item.quantity,
+            },
+          },
         });
       });
 
@@ -1118,9 +1118,13 @@ export const cancelOrder = async (
       throw error;
     }
 
-    // Fetch order
+    // Fetch order with items and payment info
     const order = await prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        orderItems: true,
+        payment: true,
+      },
     });
 
     if (!order) {
@@ -1145,6 +1149,15 @@ export const cancelOrder = async (
       throw error;
     }
 
+    // Only allow canceling confirmed orders (not pending payments)
+    if (order.status === "PENDING") {
+      const error = new Error(
+        "Cannot cancel orders with pending payment"
+      ) as any;
+      error.statusCode = 400;
+      throw error;
+    }
+
     // Time difference check (24 hours in ms)
     const now = new Date().getTime();
     const createdAt = new Date(order.createdAt).getTime();
@@ -1159,10 +1172,39 @@ export const cancelOrder = async (
       throw error;
     }
 
-    // Cancel order
-    const orderDetails = await prisma.order.update({
-      where: { id: orderId },
-      data: { status: "CANCELLED" },
+    // Cancel order with stock and sales updates in transaction
+    const orderDetails = await prisma.$transaction(async (tx) => {
+      // 1. Update order status
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { status: "CANCELLED" },
+      });
+
+      // 2. Restore stock and decrement sales for each order item
+      for (const orderItem of order.orderItems) {
+        if (orderItem.productId) {
+          // Restore stock (add back the quantity)
+          await tx.productStock.updateMany({
+            where: {
+              productId: orderItem.productId,
+              stockName: orderItem.stockName,
+            },
+            data: {
+              stock: { increment: orderItem.quantity },
+            },
+          });
+
+          // Decrement total sales (remove from sales count)
+          await tx.product.update({
+            where: { id: orderItem.productId },
+            data: {
+              totalSales: { decrement: orderItem.quantity },
+            },
+          });
+        }
+      }
+
+      return updatedOrder;
     });
 
     res.status(200).json({
