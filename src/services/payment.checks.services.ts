@@ -65,7 +65,7 @@ export const checkPendingPayments = async (): Promise<void> => {
         "https://clovershop.online/api/check-order-status",
         new URLSearchParams({
           user_token: process.env.CLOVERSHOP_API_TOKEN ?? "",
-          order_id: payment.order.orderNumber,
+          order_id: payment.order.id,
         }),
         {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
