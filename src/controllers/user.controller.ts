@@ -1150,13 +1150,13 @@ export const cancelOrder = async (
     }
 
     // Only allow canceling confirmed orders (not pending payments)
-    if (order.status === "PENDING") {
-      const error = new Error(
-        "Cannot cancel orders with pending payment"
-      ) as any;
-      error.statusCode = 400;
-      throw error;
-    }
+    // if (order.status === "PENDING") {
+    //   const error = new Error(
+    //     "Cannot cancel orders with pending payment"
+    //   ) as any;
+    //   error.statusCode = 400;
+    //   throw error;
+    // }
 
     // Time difference check (24 hours in ms)
     const now = new Date().getTime();
